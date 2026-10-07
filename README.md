@@ -72,7 +72,7 @@ Plus two supporting pieces:
 **Recommended — install once, for every project.** Keep this repo as the single source of truth and link it into your user-level Claude folder; editing the repo then updates every project immediately. On Windows (PowerShell; directory junctions need no admin rights):
 
 ```powershell
-$kit = "C:\path\to\agent_skills"
+$kit = "C:\path\to\acaf-skills"   # wherever you cloned https://github.com/dehronhb/acaf-skills
 Get-ChildItem "$kit\skills" -Directory | ForEach-Object { New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\$($_.Name)" -Target $_.FullName }
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\agents" | Out-Null
 New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\agents\acaf" -Target "$kit\agents"
