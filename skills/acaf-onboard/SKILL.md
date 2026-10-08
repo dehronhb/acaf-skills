@@ -9,7 +9,7 @@ You are setting up the file-based memory this project will run on. Everything la
 
 ## Step 0 — check
 
-If `acaf/` already exists with an `intent_brief.md`, stop and tell the user this project is already onboarded (offer `/acaf-pickup` instead).
+If `acaf/` already exists with an `intent_brief.md`, stop and tell the user this project is already onboarded (offer `/acaf-pickup` instead). If its `CLAUDE.md` lacks the ACAF routing table, install it first (the `CLAUDE.md` item in Step 3), then stop.
 
 ## Step 1 — interview the user (short)
 
@@ -29,6 +29,8 @@ Also note the project's REAL verification commands (test/lint/build) from its co
 ## Step 3 — write the scaffold
 
 Create these files (keep every one SHORT — a record, not an essay):
+
+- `CLAUDE.md` at the project root — copy `${CLAUDE_SKILL_DIR}/CLAUDE.md.template`, which carries the routing table and the standing rules every later session depends on. If a `CLAUDE.md` already exists, keep its content and add the template's sections it lacks; don't overwrite project rules. Then append a `## This project` section with what only this project needs (current phase, where data and research live, conventions). If you record a phase such as discovery, don't write it as an exemption: research, spikes and demos in that phase still go through `acaf-explore`.
 
 - `acaf/intent_brief.md` — the interview answers: purpose, audience, the v1 behaviors, constraints.
 - `acaf/functional_contract.md` — the promises table. Rows only for behavior that is **accepted as required**; it may start near-empty. If the project has a PRD/requirements docs, you MAY seed rows from them — but every seeded row's History cell must read `seeded from <doc>, not yet verified` (whether the behavior is already BUILT is the index's business; the contract tracks verification), so a seed can never be mistaken for a verified promise (acceptance flips it later). Seeding is optional — an empty contract is equally honest, especially on an existing codebase. Columns: `| ID | Criterion (present tense) | Verification | History |`. Add a `<!-- verification: commands=... -->` comment naming the project's real gate commands (or `inspection-only`).

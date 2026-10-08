@@ -1,0 +1,54 @@
+# CLAUDE.md — this project runs on the ACAF method
+
+This project's memory lives in the `acaf/` folder, not in any conversation. The ACAF skills (acaf-onboard, acaf-plan, acaf-explore, acaf-build, acaf-review, acaf-accept, acaf-pickup, acaf-continue) are the workflow. These standing rules apply to every turn, whether or not a skill is invoked.
+
+## Session start
+
+Your first action in a fresh session (or after a context compaction) is `acaf-pickup`: it reads the records and says where things stand and what's next. Don't start work from memory of a previous conversation — the files are the truth.
+
+## Which skill, when (routing)
+
+Route every message by intent before acting. This table says *when*; each skill's body says *how*, with steps this file doesn't contain (study files, budgets, gates, records). So invoke the skill rather than following it from memory, even when you think you know what it says.
+
+| The user's message means… | Use |
+|---|---|
+| A fresh session, "where were we", "status" | `acaf-pickup` |
+| The project has no `acaf/` folder yet | `acaf-onboard` (before anything else) |
+| Research; a spike, demo or prototype; a comparison of approaches, tools or vendors; any trial meant to answer a question; a challenge with no proven approach; an approach failing its goal or getting worse; "what are our options?" | `acaf-explore` |
+| Start something new or non-trivial ("add X", "build Y", "fix Z") with no active initiative | `acaf-plan` |
+| "continue", "next", "keep going", "what now / not sure what's next" | `acaf-continue` |
+| A direct build ask while an initiative is active ("build the next slice") | `acaf-build` |
+| "review this", "check the work", "get a second opinion" | `acaf-review` |
+| "are we done?", "close it", "accept", "wrap up" | `acaf-accept` |
+| "park this: …" | Append an `FB-<n>` line to `acaf/follow_up_backlog.md` — no skill, no derail |
+
+- **No phase is an exemption.** In discovery, before any initiative exists, research, spikes, demos and asset trials are explorations: they go through `acaf-explore`, which writes its study file before the first trial. A phase limits *what* gets built, never *which skill* applies.
+- **Escape hatch:** a genuinely trivial mechanical fix (a typo, a broken import) may skip the plan/build ceremony. It still gets a `change_log.md` row and its own commit, and if it turns out non-trivial mid-edit, stop and route through `acaf-plan`.
+- **When unsure which skill applies,** run `acaf-pickup` first — the records usually answer it.
+
+## The working discipline
+
+These hold on every turn, inside or outside a skill:
+
+- **One initiative at a time.** New requests during an active initiative are either a bounded detour that returns, or a parked `FB-<n>` entry. Don't silently swap the work in flight.
+- **Explore, then plan, then build.** Choosing an approach for a new challenge goes through `acaf-explore`; non-trivial work gets an initiative via `acaf-plan` before any code; slices are built with `acaf-build` — one gated commit per slice, at the cadence the plan's `build-mode` sets.
+- **Don't park the obvious.** A small, obvious fix found mid-slice gets done right after the slice lands, as its own recorded change (a `change_log.md` row and its own commit). `FB-<n>` entries are for the user's own ideas and for genuinely non-trivial discoveries that need a plan.
+- **The no-silent-success rule.** After any change-making step, verify the declared files exist and actually changed, and that the gates ran green. A step that changed nothing, or whose gates are red, is reported as a failure in plain words — not softened, not buried in an otherwise-green report.
+- **Record as you go.** Every change → a `change_log.md` row. Every divergence from a plan → a `deviation_log.md` `DEV-<n>` entry with the why. If a past record turns out wrong, correct it visibly; don't rewrite history silently.
+- **The contract vs the index.** `functional_contract.md` holds verified promises (what must be true); `functionality_index.md` holds the as-built truth (what is). Keep them distinct, and neither should claim more than the code contains.
+- **Verification uses the project's real commands** (the `<!-- verification -->` marker in the contract). Never invent a command the project cannot run.
+- **Human checks are batched** into the acceptance checklist (`acaf-accept`); don't interrupt builds for them.
+- **The right tool for each check:** code only for questions with exact answers; a cheap model under a written rule for anything about meaning or context.
+
+## Communication
+
+- Plain, specific words. Complete sentences. Name real files (as clickable paths) and real numbers ("tests 42 → 45") instead of adjectives.
+- End each work turn with a short status: what was done (with verdicts), anything parked or deviated, and a **What's next** block — the recommended action first, in your own voice.
+- **Do the work you own; don't hand it back as a command to type.** If the next step is something you perform — running the independent reviewer, the mechanical part of acceptance, refreshing a record — run it, or offer it in one plain sentence (`Say "review it" → I run the independent reviewer`). Slash-commands exist for when the user chooses to steer; your recommendations are actions in your own voice, not the user's homework.
+- **When the real open question is which DIRECTION to take next, you do the ideation — never ask a bare "what now?".** You hold the whole record set: `follow_up_backlog.md`, the gaps and unmet rows in `functional_contract.md`, principles in `vision_principles.md` not yet realized, and any PRD/intent docs. Read them and bring 2–4 concrete candidate directions, each with a one-line why, its source, and the exact words to pick it (`Say "canvas parity" → I plan the gold-standard zoom/pan work (FB-2)`). Recommend the strongest, but make them real choices — never make the user supply an idea you could have drawn from the files.
+- Curated, not exhaustive: the 2–4 you genuinely think are best, not every path that exists. *(That is for direction picks. Solving a challenge is the opposite: exhaustive in the exploration — `acaf-explore` — and curated only in the recommendation.)* For a decision that is NOT a direction pick, ask ONE question, name the trade-off, and lead with your recommendation.
+
+## Git
+
+- One commit per slice, plain-language message, first line under ~70 characters. Commit only what the slice touched plus its records. Never push unless asked.
+- **Verify the repo-local identity before the FIRST commit (and after any clone/init).** On a machine with multiple git accounts, the global identity may belong to a different account than this project — `git config user.email` must match the account this project belongs to, set repo-locally. If this file has a "Machine note" section below, it is authoritative for this machine; follow it exactly.

@@ -50,8 +50,9 @@ The app does not port to Claude Code (and doesn't need to — Claude Code alread
 
 Plus two supporting pieces:
 
-- **`CLAUDE.md.template`** — the ambient standing rules (the `AGENTS.md` role in the IDE repo): session-start pickup, one-initiative-at-a-time, the no-silent-success rule, the reporting format. Skills are invoked; this is always on.
+- **`skills/acaf-onboard/CLAUDE.md.template`** — the ambient standing rules (the `AGENTS.md` role in the IDE repo): the routing table, session-start pickup, one-initiative-at-a-time, the no-silent-success rule, the reporting format. Skills are invoked; this is always on. `/acaf-onboard` installs it into each project as `CLAUDE.md`.
 - **`agents/lead-reviewer.md`** — the independent reviewer subagent definition used by `/acaf-review`.
+- **`hooks/acaf-route-reminder.ps1`** — an optional hook that reminds every session in an ACAF project to route through the skills (see Install).
 
 ## What maps to native Claude Code features (deliberately NOT ported)
 
@@ -78,7 +79,17 @@ New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\agents" | Out-Null
 New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\agents\acaf" -Target "$kit\agents"
 ```
 
-(macOS/Linux: `ln -s` the same folders.) Then each project only needs its `CLAUDE.md` (step 5 below). Don't also copy the skills or the agent into a project: a user-level skill wins over a same-named project copy, but a project's agent copy wins over the user-level one — so stale copies quietly shadow your updates. In the `/` picker, a skill loaded this way shows `(user)` in its tooltip.
+(macOS/Linux: `ln -s` the same folders.) Then each project only needs its `CLAUDE.md`, which `/acaf-onboard` installs. Don't also copy the skills or the agent into a project: a user-level skill wins over a same-named project copy, but a project's agent copy wins over the user-level one — so stale copies quietly shadow your updates. In the `/` picker, a skill loaded this way shows `(user)` in its tooltip.
+
+**Optional: routing reminder hook.** Skills and `CLAUDE.md` only *suggest*, and over a long session a model can drift into doing method work freehand. This hook adds one line to every prompt in a folder that has an `acaf/` folder (and prints nothing anywhere else), reminding the session to route through the skills. Add this under `hooks` in `~/.claude/settings.json`:
+
+```json
+"UserPromptSubmit": [
+  { "hooks": [ { "type": "command", "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\path\\to\\acaf-skills\\hooks\\acaf-route-reminder.ps1"],
+      "timeout": 10 } ] }
+]
+```
 
 **Per-project install (copies — these drift from the repo over time):**
 
@@ -86,12 +97,12 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\agents\acaf" -Target
 2. Copy the contents of `skills/` into `<your-project>/.claude/skills/` (each skill keeps its own folder: `.claude/skills/acaf-onboard/SKILL.md`, …). To use them across *all* projects instead, copy into `~/.claude/skills/`.
 3. Copy the contents of `commands/` into `<your-project>/.claude/commands/` — these thin wrappers make each skill a **typeable slash command** (`/acaf-onboard`, …). The desktop app's `/` picker reads `.claude/commands/`, not `.claude/skills/`, so without them a typed `/acaf-…` can come back "isn't a recognized command here."
 4. Copy `agents/lead-reviewer.md` into `<your-project>/.claude/agents/`.
-5. Copy `CLAUDE.md.template` to `<your-project>/CLAUDE.md` (or merge it into an existing one).
+5. Copy `skills/acaf-onboard/CLAUDE.md.template` to `<your-project>/CLAUDE.md`, or let `/acaf-onboard` install it (it merges into an existing one).
 6. Start with the prompts in **PROMPTS.md** — begin with `/acaf-onboard`. (New commands/skills are discovered at session start — after copying, start a fresh conversation.)
 
 ## Honest limits of a skills port
 
-- **Skills are instructions, not enforcement.** The IDE *refused* an undeclared code step in code; a skill can only insist. If Claude drifts, the records make the drift visible — and the optional pre-commit hook in PROMPTS.md restores mechanical enforcement of the gates.
+- **Skills are instructions, not enforcement.** The IDE *refused* an undeclared code step in code; a skill can only insist. If Claude drifts, the records make the drift visible — and the optional pre-commit hook in PROMPTS.md restores mechanical enforcement of the gates. Skill *use* is likewise a suggestion: a long session can drift into doing method work freehand, which the optional routing reminder hook (Install) nudges against on every turn.
 - **One context, not true actor isolation.** In the IDE, each actor got a scoped prompt. Here, phases share the main context; the place isolation genuinely pays — review — is preserved via the subagent.
 - **Keep the records small.** The method's cost is upkeep. The skills write terse records on purpose; resist turning every log into an essay.
 
