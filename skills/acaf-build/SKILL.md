@@ -9,7 +9,7 @@ One slice = small, verified, recorded, committed. Check `build-mode` in the mani
 
 ## Step 0 — orient
 
-Read `acaf/initiative_manifest.md` (the active initiative + its slice checkboxes) and the decision record. If no initiative is `in_progress`, stop and point to `/acaf-plan`. Pick the first unchecked slice.
+Read `acaf/initiative_manifest.md` (the active initiative + its slice checkboxes), the decision record, and `acaf/lessons.md` if present. If no initiative is `in_progress`, stop and point to `/acaf-plan`. Pick the first unchecked slice.
 
 ## Step 1 — declare the writes
 
@@ -21,7 +21,9 @@ Before touching anything, state the slice's expected writes from its definition 
 - **Before writing any check, ask whether the question has an exact answer.** If it's about meaning or context, a cheap model call under a written rule makes the call and gives its reason; code only gathers candidates for it. If you catch yourself tuning a heuristic (a threshold, a word list, an overlap score) to make code judge meaning, stop and use the model instead.
 - Stay inside the declared writes. Needing an undeclared file mid-slice is fine ONCE — declare it out loud, add it to the DoD, continue. Needing many means the slice was mis-planned: stop, re-plan.
 - **Discoveries mid-slice:** if the fix is common sense — small, obvious, and you know exactly what to build — just do it, right after the current slice lands, as its own change (its own `change_log.md` row and commit; fold it into the slice only when it's on-topic). Reserve `FB-<n>` entries in `acaf/follow_up_backlog.md` for the user's own ideas they aren't ready to build, and for genuinely non-trivial discoveries that need their own plan. Don't derail the slice, and don't park the obvious.
-- **If the approach itself is failing the goal** — the results are not what the user needs, or are getting WORSE, even with every gate green — or you catch yourself building a fix for a fix to keep it alive: stop. Record a `DEV-<n>` and run `acaf-explore` before another slice goes into that approach. Green gates on a worsening outcome are a failure, not progress.
+- **Fixing a reported problem** (a bug, a review finding, a piece of feedback): first ask what it's an example of. Search for every place the same pattern appears and fix them all, or fix the shared cause, and add a test that would catch the whole class. Fixing only the instance someone pointed at guarantees another round.
+- **A fork mid-slice** (a new library or service, a paid call, a scope change, a deviation the user would notice, or an urge to say "I can't"): run `acaf-direction`. Cheap and certain choices are yours; unsure and costly ones go to the user. Before concluding you can't do something (run a build, use a tool, reach a service), really try, and look for a way.
+- **If the approach itself is failing the goal** (the results are not what the user needs, or are getting worse, even with every gate green), or two fixes in a row haven't worked, or you catch yourself building a fix for a fix to keep it alive: stop. Record a `DEV-<n>` and run `acaf-explore` before another slice goes into that approach. Green gates on a worsening outcome are a failure, not progress.
 
 ## Step 3 — the honest postcondition (the no-op rule)
 
@@ -30,6 +32,7 @@ After implementing, verify mechanically, before claiming anything:
 1. Every declared file **exists**.
 2. Every declared file **actually changed** (diff it). A slice that "completed" while its declared files are byte-identical is a failed slice — report it plainly and either fix it or mark the slice blocked. Don't report a no-op as done; here your honesty is the only enforcement.
 3. The change is the change *requested* — if partway you solved a different problem than the slice names, say so.
+4. **It works the way the user will meet it.** Passing tests isn't done. Run the real thing the way the user does (the built app, the real launch path or shortcut, the real output) and look at it; for anything visual, take a screenshot and compare it with what was asked. Do this yourself rather than leaving it as a human check.
 
 ## Step 4 — gates
 

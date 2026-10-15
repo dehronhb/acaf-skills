@@ -16,6 +16,8 @@ Read enough to know the true state: `acaf/initiative_manifest.md` (is an initiat
 In this order:
 
 1. **Drift first.** If the records or git are inconsistent (uncommitted work not logged, a stale handoff), fix that before new work, and say what was off.
+1b. **A correction from the user** in the message you're answering → `acaf-lesson` before anything else, then route the corrected work from here.
+1c. **A fork in the next step** (choosing a route or a tool, spending money, changing scope, dropping an approach) → `acaf-direction` decides whether you act, test small, or ask.
 2. **A challenge with no proven approach, or an approach failing its goal / getting worse** → run the `acaf-explore` procedure (the option study: every option, its levers, a trial of each, a cost and trade-off report) — the user's choice then goes to `acaf-plan`.
 3. **Slices remaining** → run the `acaf-build` procedure, honoring the manifest's `build-mode`: `one-at-a-time` builds the next slice (gates, records, one commit); `all-at-once` builds all remaining slices back-to-back, each gated/recorded/committed, halting on the first failure.
 4. **All slices built, not reviewed** → run the `acaf-review` procedure yourself (spawn the reviewer). Don't hand back a command — run it, then report findings.

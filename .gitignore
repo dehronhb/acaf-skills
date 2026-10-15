@@ -11,3 +11,7 @@ Thumbs.db
 _notes/
 *.local.md
 docs/
+
+# Written by Claude Code when it loads a mod from a folder
+mods/*/.claude-plugin/types/
+mods/*/tsconfig.json

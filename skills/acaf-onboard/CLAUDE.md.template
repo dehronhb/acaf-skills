@@ -1,6 +1,6 @@
 # CLAUDE.md — this project runs on the ACAF method
 
-This project's memory lives in the `acaf/` folder, not in any conversation. The ACAF skills (acaf-onboard, acaf-plan, acaf-explore, acaf-build, acaf-review, acaf-accept, acaf-pickup, acaf-continue) are the workflow. These standing rules apply to every turn, whether or not a skill is invoked.
+This project's memory lives in the `acaf/` folder, not in any conversation. The ACAF skills (acaf-onboard, acaf-plan, acaf-explore, acaf-direction, acaf-build, acaf-review, acaf-accept, acaf-lesson, acaf-pickup, acaf-continue) are the workflow. These standing rules apply to every turn, whether or not a skill is invoked.
 
 ## Session start
 
@@ -20,11 +20,28 @@ Route every message by intent before acting. This table says *when*; each skill'
 | A direct build ask while an initiative is active ("build the next slice") | `acaf-build` |
 | "review this", "check the work", "get a second opinion" | `acaf-review` |
 | "are we done?", "close it", "accept", "wrap up" | `acaf-accept` |
+| The user corrects course: a wrong assumption, a rejected or questioned approach ("why did you…", "are you sure…", "is this the right path?"), a misread request | `acaf-lesson` first, then continue on the corrected route |
+| A fork in the road, at any point: choosing a route, tool, library or test plan; spending money; changing scope; dropping an approach; concluding something can't be done | `acaf-direction` |
 | "park this: …" | Append an `FB-<n>` line to `acaf/follow_up_backlog.md` — no skill, no derail |
 
 - **No phase is an exemption.** In discovery, before any initiative exists, research, spikes, demos and asset trials are explorations: they go through `acaf-explore`, which writes its study file before the first trial. A phase limits *what* gets built, never *which skill* applies.
 - **Escape hatch:** a genuinely trivial mechanical fix (a typo, a broken import) may skip the plan/build ceremony. It still gets a `change_log.md` row and its own commit, and if it turns out non-trivial mid-edit, stop and route through `acaf-plan`.
 - **When unsure which skill applies,** run `acaf-pickup` first — the records usually answer it.
+
+## How to think about a problem
+
+Start from what the user is trying to get, not from what's nearest to hand. Before choosing how to do something, and again whenever you're stuck, ask:
+
+- **What is this an example of?** A reported bug, a review finding or one piece of feedback usually has siblings. Find them all, or the shared cause.
+- **Who uses this, and what are they doing, step by step?** Design from the person, not from the mechanism.
+- **Who has already solved this?** Look in this codebase, the references the user named, and the world before inventing.
+- **What am I assuming?** Check facts about the world, the user and the product, or ask. Never build on a guess.
+- **Did the user set this limit, or did I?** Quality comes first, then cost. Caps, samples, smaller scopes and caution the user didn't ask for are yours to drop or to raise.
+- **Have I actually tried, or am I guessing?** "I can't" and "it can't be done" are hypotheses until tested. Do what you can do yourself rather than handing it back.
+- **What's the smallest, cheapest test that could prove me wrong?** Win the hardest small case before scaling up or spending.
+- **Two fixes haven't worked: is the approach wrong?** Stop patching and look at the route again (`acaf-direction`).
+- **Would the user agree it's done if they used it right now?** Check it the way they will: the real app, the real launch path, the real output, looked at.
+- **Why does this rule exist?** When following a rule or an old constraint works against its purpose, the purpose wins. Say so and record it.
 
 ## The working discipline
 
@@ -37,11 +54,12 @@ These hold on every turn, inside or outside a skill:
 - **Record as you go.** Every change → a `change_log.md` row. Every divergence from a plan → a `deviation_log.md` `DEV-<n>` entry with the why. If a past record turns out wrong, correct it visibly; don't rewrite history silently.
 - **The contract vs the index.** `functional_contract.md` holds verified promises (what must be true); `functionality_index.md` holds the as-built truth (what is). Keep them distinct, and neither should claim more than the code contains.
 - **Verification uses the project's real commands** (the `<!-- verification -->` marker in the contract). Never invent a command the project cannot run.
-- **Human checks are batched** into the acceptance checklist (`acaf-accept`); don't interrupt builds for them.
+- **Human checks are batched** into the acceptance checklist (`acaf-accept`); don't interrupt builds for them. Verify everything you can yourself first: human checks are for taste and feel, not mechanics.
 - **The right tool for each check:** code only for questions with exact answers; a cheap model under a written rule for anything about meaning or context.
 
 ## Communication
 
+- **The user reads mainly your last message, skimming for trade-offs.** Put any decision they need to make there, short and scannable: the options, what each costs, how sure you are, your recommendation. Plans and studies are for your own thinking. Keep them in files, and don't ask the user to read them.
 - Plain, specific words. Complete sentences. Name real files (as clickable paths) and real numbers ("tests 42 → 45") instead of adjectives.
 - End each work turn with a short status: what was done (with verdicts), anything parked or deviated, and a **What's next** block — the recommended action first, in your own voice.
 - **Do the work you own; don't hand it back as a command to type.** If the next step is something you perform — running the independent reviewer, the mechanical part of acceptance, refreshing a record — run it, or offer it in one plain sentence (`Say "review it" → I run the independent reviewer`). Slash-commands exist for when the user chooses to steer; your recommendations are actions in your own voice, not the user's homework.

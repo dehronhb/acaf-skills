@@ -13,6 +13,7 @@ The records are the project's memory. This skill reads them and orients — it c
 2. `acaf/handoff_summary.md` — the last written orientation.
 3. `acaf/change_log.md` (tail) and `acaf/deviation_log.md` (tail) — what recently happened, incl. anything blocked.
 4. `acaf/follow_up_backlog.md` — what's parked.
+4b. `acaf/lessons.md` — how the user has corrected agents on this project before. Carry these habits into the session; don't repeat a recorded lesson.
 5. `git log --oneline -10` and `git status` — confirm the records match the repo (uncommitted work or commits missing from the change log = drift; SAY so).
 
 ## Step 2 — report (short)

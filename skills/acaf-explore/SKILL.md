@@ -28,6 +28,8 @@ The failure this prevents has three parts, and they compound:
 ## Step 1 — frame the problem in the user's terms
 
 - **The goal**, as the user would judge it. For anything the user will look at, how it looks to them comes first.
+- **The person and their steps:** who meets this result, and what they're doing when they do. A study framed around the mechanism ("which model is cheapest") instead of the person ("a parent hears a story that sounds like their child's world") compares the wrong things.
+- **What's at stake:** roughly what a good answer is worth (the cost it saves, the quality it buys). The study's budget has to be in proportion to it.
 - **The rubric, written BEFORE any trial:** the qualities that decide it, in priority order, each with how it is judged — by eye against named references, measured, or both. A rubric written after seeing the results bends to them.
 - **Constraints — split them honestly.** REAL constraints: safety, privacy, law, and decisions the user has already made. PREFERENCES: cost, speed, effort, integration work, UX friction. **Preferences are reported for every option; they never remove an option at this stage.**
 - **The benchmark:** the hardest real case, plus one easy case. Every option is tried on the same benchmark, so the results can be compared.
@@ -36,6 +38,7 @@ The failure this prevents has three parts, and they compound:
 ## Step 2 — enumerate the option space: breadth first, regardless of cost
 
 - **Walk the families, not only the ones you already know:**
+  - **what already exists**: a project, asset set, library or service that solves the whole problem, or most of it (search before assuming there is none);
   - single-pass tools / models / vendors;
   - pipelines (per-part, then assemble; multi-stage);
   - control and conditioning (give the tool a layout, a structure, a reference, a mask);
@@ -57,7 +60,8 @@ The failure this prevents has three parts, and they compound:
 ## Step 4 — design the trials, and the budget
 
 - One trial per option at its best-known settings; then lever trials wherever a result fails on something a lever addresses.
-- **A cost estimate per trial, and the total. Cost never removes an option.** If the total exceeds what the user has authorised, ask ONCE, up front, with the exact figure and its per-option breakdown — then run the whole set without further interruption.
+- **Smallest hard test first.** Run every option on the smallest benchmark that still contains the hard part (the hardest few cases, a one-minute clip rather than a whole video, one page rather than a whole story) before anything bigger. Free trials come first: your own reading and judgment, local tools, free tiers. Scale up only for the options that win small.
+- **A cost estimate per trial, and the total. Cost never removes an option from the list,** but spending is a direction choice (`acaf-direction`, Step 4). Cheap trials just run. Before paid trials of options you aren't sure about, show the user the framing and the options with each trial's cost, and wait for their choice: they should see that you understand the problem before they pay to explore it. A study whose total is out of proportion to what's at stake is the wrong study; design a smaller one. Once the user approves a budget, run the approved set without further interruption.
 - **Write the study plan to `acaf/explorations/<slug>.md` before running anything:** the framing, the rubric, every option with its levers, the trials, the budget.
 
 ## Step 5 — run every trial, and look
@@ -85,3 +89,4 @@ The failure this prevents has three parts, and they compound:
 - Decide for the user between options with different trade-offs — it presents them, with a recommendation.
 - Skip an option because it "probably won't work" — it tries it, or says exactly what blocks the trial.
 - Build production code for every option — trials are spikes. The chosen option is built properly through `acaf-plan` and `acaf-build`.
+- Become the way the product gets built. A study answers a question about which route to take. When there is no open question, or a run of "trials" is really the product taking shape, stop and plan it.

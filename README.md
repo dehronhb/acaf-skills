@@ -23,7 +23,7 @@ The ACAF IDE is two things layered together:
 
 The app does not port to Claude Code (and doesn't need to — Claude Code already has a chat, a model, diffs, and git). **The method ports completely.** The proof: the ACAF IDE itself was built inside Claude Code by an agent following exactly this method — the `acaf/` records folder and an `AGENTS.md` of standing rules were the whole system. These skills are that method, packaged.
 
-## The nine pillars (what these skills preserve)
+## The ten pillars (what these skills preserve)
 
 1. **Files are the memory, not the chat.** Everything the project knows lives in an `acaf/` folder: what the project is for (`intent_brief.md`), what it promises (`functional_contract.md`), what actually exists (`functionality_index.md`), what's in flight (`initiative_manifest.md`), what changed and why (`change_log.md`, `decisions/`, `deviation_log.md`), and what's parked (`follow_up_backlog.md`). A new session picks up from disk, not from a stale summary.
 2. **Onboard before you build.** No feature work until the foundation files exist. On an existing codebase, the functionality index is built by *reading the real code* — never by guessing. On an empty project, the index honestly says "nothing built yet."
@@ -34,6 +34,7 @@ The app does not port to Claude Code (and doesn't need to — Claude Code alread
 7. **Independent review.** A fresh-context reviewer (a subagent that hasn't seen the implementation conversation) checks the diff against the plan and the criteria, adversarially. The builder grading their own homework was a failure mode the IDE explicitly engineered away.
 8. **Human judgment is batched at the end.** Things only a person can judge (does it look right, does it feel right) collect into one checklist at acceptance time — the user is never interrupted mid-build for them.
 9. **Explore before you commit.** A new challenge gets an option study (`/acaf-explore`) — every option regardless of cost, each option's levers turned before it is dropped, every option tried and reported with its cost and trade-offs, the way an architect reports to a product manager. The expensive failure is rarely a wrong guess; it is a low-ceiling approach polished for days while better options were dismissed in the head.
+10. **Choose the route on purpose, and learn from every correction.** An audit of ~600 course corrections across 15 projects found that agents rarely fail at mechanics: they take the nearest path at a fork. That might be the one flagged bug instead of every bug like it, a cheaper version the user never asked for, their own guess about the world, or their own tests instead of the real app. At every fork, `/acaf-direction` makes the agent understand the problem in the user's terms, find what already exists, and lay out real options. Then it decides by *how sure × how costly*: cheap or certain choices are the agent's, and unsure, costly ones go to the user as a short options card. When the user steers an agent back, `/acaf-lesson` names the wrong assumption, finds everywhere else it applied, and records the thinking habit in `acaf/lessons.md` for every future session.
 
 ## The skill set
 
@@ -44,15 +45,18 @@ The app does not port to Claude Code (and doesn't need to — Claude Code alread
 | **`/acaf-build`** | Executes slices: declare writes → implement → gates → honest DoD check → records → one commit — **one at a time (default) or all at once**, per the initiative's build-mode (plan asks which) | Repeatedly, or once in all-at-once mode, until the slices are done |
 | **`/acaf-continue`** | The router (the ported **Orchestrator** role): reads the state, advances the active initiative by one step — build / review / accept — or, if nothing's in flight, proposes sourced directions to pick | Your main key — "continue", "next", or "what now?" |
 | **`/acaf-explore`** | The option study: every technical option for a new challenge regardless of cost, each option's levers, a trial of each, and an architect's report of quality, cost and trade-offs | When a challenge has no proven approach, or an approach keeps failing or getting worse |
+| **`/acaf-direction`** | The direction check: understand the problem in the user's terms, find what exists, lay out options with cost and confidence, then act, test small, or ask, by how sure × how costly | At any fork: choosing a route or a tool, spending money, changing scope, dropping an approach, or about to say "I can't" |
+| **`/acaf-lesson`** | Turns a course correction into a lesson: the wrong assumption, everywhere it applied, the corrected route, and an `L-<n>` thinking habit in `acaf/lessons.md` | Whenever the user steers the agent back |
 | **`/acaf-review`** | Spawns a fresh-context reviewer agent to adversarially check the slice diff against plan + criteria | After a slice (the build skill asks for it on risky slices) |
 | **`/acaf-accept`** | Walks every acceptance criterion against real evidence, graduates them into the contract, updates the as-built index, writes the handoff, and hands you the batched human checklist | At the end of an initiative |
 | **`/acaf-pickup`** | Reads the records and reports where things stand + the exact next step | First thing in every new session |
 
-Plus two supporting pieces:
+Plus these supporting pieces:
 
-- **`skills/acaf-onboard/CLAUDE.md.template`** — the ambient standing rules (the `AGENTS.md` role in the IDE repo): the routing table, session-start pickup, one-initiative-at-a-time, the no-silent-success rule, the reporting format. Skills are invoked; this is always on. `/acaf-onboard` installs it into each project as `CLAUDE.md`.
+- **`skills/acaf-onboard/CLAUDE.md.template`** — the ambient standing rules (the `AGENTS.md` role in the IDE repo): the routing table, how to think about a problem, session-start pickup, one-initiative-at-a-time, the no-silent-success rule, the reporting format. Skills are invoked; this is always on. `/acaf-onboard` installs it into each project as `CLAUDE.md`.
 - **`agents/lead-reviewer.md`** — the independent reviewer subagent definition used by `/acaf-review`.
-- **`hooks/acaf-route-reminder.ps1`** — an optional hook that reminds every session in an ACAF project to route through the skills (see Install).
+- **`mods/acaf/`** — a Claude Code [mod](https://code.claude.com/docs/en/plugins/mods/overview) (v2.1.287+, or v2.1.286+ in the Desktop app) that makes the method's key moments happen in any project with an `acaf/` folder. It adds a routing note to every message. A cheap model (Haiku) reads each message you type and, when it's a course correction, tells the agent to run `acaf-lesson` first. After a compaction or a resume, it re-orients the agent from the records. It also adds a `direction` tool that shows you an options card, and logs your choice, before an unsure, costly move. Tests: `claude plugin test mods/acaf`.
+- **`hooks/acaf-route-reminder.ps1`** — the older, routing-only reminder, for clients that can't run mods (see Install).
 
 ## What maps to native Claude Code features (deliberately NOT ported)
 
@@ -81,7 +85,15 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\agents\acaf" -Target
 
 (macOS/Linux: `ln -s` the same folders.) Then each project only needs its `CLAUDE.md`, which `/acaf-onboard` installs. Don't also copy the skills or the agent into a project: a user-level skill wins over a same-named project copy, but a project's agent copy wins over the user-level one — so stale copies quietly shadow your updates. In the `/` picker, a skill loaded this way shows `(user)` in its tooltip.
 
-**Optional: routing reminder hook.** Skills and `CLAUDE.md` only *suggest*, and over a long session a model can drift into doing method work freehand. This hook adds one line to every prompt in a folder that has an `acaf/` folder (and prints nothing anywhere else), reminding the session to route through the skills. Add this under `hooks` in `~/.claude/settings.json`:
+**Recommended: the ACAF mod.** Skills and `CLAUDE.md` only *suggest*; the mod makes the key moments happen (see the skill set above). Load it in every session, including the Desktop app, by pointing Claude Code at the folder in `~/.claude/settings.json`. Edits to the folder reload on save, so it stays in sync like the junctions:
+
+```json
+"env": { "CLAUDE_CODE_PLUGIN_DIRS": "C:\\path\\to\\acaf-skills\\mods\\acaf" }
+```
+
+(Separate several folders with `;` on Windows, `:` elsewhere.) In a new session, `/plugin` should show `1 mod active · acaf`. The correction check costs one small Haiku call per message you type in an ACAF project, on your plan, and adds a second or two before the agent starts.
+
+**Fallback: routing reminder hook,** for clients that can't run mods. Don't use it alongside the mod, which already adds the same note. Over a long session a model can drift into doing method work freehand. This hook adds one line to every prompt in a folder that has an `acaf/` folder (and prints nothing anywhere else), reminding the session to route through the skills. Add this under `hooks` in `~/.claude/settings.json`:
 
 ```json
 "UserPromptSubmit": [
@@ -102,7 +114,7 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\agents\acaf" -Target
 
 ## Honest limits of a skills port
 
-- **Skills are instructions, not enforcement.** The IDE *refused* an undeclared code step in code; a skill can only insist. If Claude drifts, the records make the drift visible — and the optional pre-commit hook in PROMPTS.md restores mechanical enforcement of the gates. Skill *use* is likewise a suggestion: a long session can drift into doing method work freehand, which the optional routing reminder hook (Install) nudges against on every turn.
+- **Skills are instructions, not enforcement.** The IDE *refused* an undeclared code step in code; a skill can only insist. If Claude drifts, the records make the drift visible — and the optional pre-commit hook in PROMPTS.md restores mechanical enforcement of the gates. Skill *use* is likewise a suggestion: a long session can drift into doing method work freehand, which the ACAF mod (Install) nudges against on every turn. The mod makes the important moments happen (a correction gets a lesson, an unsure and costly move gets an options card), but it can't make the thinking good: that still comes from the skills.
 - **One context, not true actor isolation.** In the IDE, each actor got a scoped prompt. Here, phases share the main context; the place isolation genuinely pays — review — is preserved via the subagent.
 - **Keep the records small.** The method's cost is upkeep. The skills write terse records on purpose; resist turning every log into an essay.
 

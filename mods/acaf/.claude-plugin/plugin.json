@@ -1,0 +1,6 @@
+{
+  "name": "acaf",
+  "version": "0.1.0",
+  "description": "Makes the ACAF method's key moments happen: routes each message, catches course corrections, re-orients after compaction, and shows the user a direction check before an unsure, costly move",
+  "author": { "name": "Dehron Hite-Benson" }
+}

@@ -11,8 +11,8 @@ Acceptance is evidence-based. Nothing graduates on memory or good intentions.
 
 For EACH acceptance criterion on the active initiative (from `acaf/initiative_manifest.md`):
 
-- **Find the evidence and exercise it.** Run the relevant test, or run the code path, or open the file and trace it. "The slice that was supposed to do this is checked off" is not evidence.
-- Verdict per criterion: **met** (with the evidence, one line) / **not met** (what's missing) / **human-only** (only a person can judge — e.g. visual quality, feel).
+- **Find the evidence and exercise it.** Run the relevant test, or run the code path, or open the file and trace it. "The slice that was supposed to do this is checked off" is not evidence. For anything the user will use, exercise it the way they will: the built app, the real launch path, the real output, looked at (screenshots for anything visual).
+- Verdict per criterion: **met** (with the evidence, one line) / **not met** (what's missing) / **human-only** (only a person can judge taste and feel, such as whether it looks right or reads well). Anything you can check yourself is not human-only: run it.
 - Any **not met** → the initiative does not close. Report which, and offer to plan the gap as remaining slices. Don't close over an unmet criterion, and don't quietly delete one — if a criterion was wrong, record the correction as a `DEV-<n>` entry with the user's sign-off.
 
 ## Step 2 — graduate into the contract
