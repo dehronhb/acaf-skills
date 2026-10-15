@@ -14,7 +14,7 @@ Planning is a deliverable, not a preamble. The output is files, so any future se
 
 ## Step 1 — understand the request, against the records and the person
 
-Read `intent_brief.md`, `functional_contract.md`, `functionality_index.md`, `lessons.md` (if present), and the relevant source files. Then do Steps 1–2 of `acaf-direction` before choosing anything:
+Read `intent_brief.md`, `functional_contract.md`, `functionality_index.md`, the lessons file (`lessons*.md`, if present), and the relevant source files. Then do Steps 1–2 of `acaf-direction` before choosing anything:
 
 - **The person and their steps:** who uses this, and what they do, step by step. For anything with a user experience, map the flows they'll go through (including the messy ones) before designing a screen or a pipeline.
 - **What "good" means to the user,** in their terms.

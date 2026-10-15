@@ -1,6 +1,6 @@
 ---
 name: acaf-lesson
-description: Turn a course correction into a lesson. When the user steers you back (a wrong assumption, a rejected approach, a misread request, a shortcut they didn't ask for, work handed back, something rebuilt that already exists, something called done that isn't), name what you assumed and what is true, find everywhere else that assumption shaped the work, fix the route, and record the lesson as a thinking habit in acaf/lessons.md. Use on any redirect, including "why did you…", "are you sure…" and "is this the right path?".
+description: Turn a course correction into a lesson. When the user steers you back (a wrong assumption, a rejected approach, a misread request, a shortcut they didn't ask for, work handed back, something rebuilt that already exists, something called done that isn't), name what you assumed and what is true, find everywhere else that assumption shaped the work, fix the route, and record the lesson as a thinking habit in the project's lessons file (acaf/lessons.md or the one it already keeps). Use on any redirect, including "why did you…", "are you sure…" and "is this the right path?".
 ---
 
 # ACAF Lesson — learn the thinking, not just the fix
@@ -35,7 +35,7 @@ If the correction changes the approach, run `acaf-direction` on the new route be
 
 ## Step 4 — record the lesson
 
-Append to `acaf/lessons.md` (create it with a `# Lessons` heading if missing):
+Append to the project's lessons file. That's `acaf/lessons.md`, or the one the project already keeps (any `acaf/lessons*.md`, such as `lessons_learned.md`, or one its `CLAUDE.md` names). Never start a second lessons file. Create `acaf/lessons.md` with a `# Lessons` heading only if none exists. In an existing file, follow its layout and numbering, and include these parts:
 
 ```
 ## L-<n> — <the habit, as an instruction to yourself> (<date>)

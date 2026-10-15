@@ -9,7 +9,7 @@ One slice = small, verified, recorded, committed. Check `build-mode` in the mani
 
 ## Step 0 — orient
 
-Read `acaf/initiative_manifest.md` (the active initiative + its slice checkboxes), the decision record, and `acaf/lessons.md` if present. If no initiative is `in_progress`, stop and point to `/acaf-plan`. Pick the first unchecked slice.
+Read `acaf/initiative_manifest.md` (the active initiative + its slice checkboxes), the decision record, and the project's lessons file (`acaf/lessons*.md`) if present. If no initiative is `in_progress`, stop and point to `/acaf-plan`. Pick the first unchecked slice.
 
 ## Step 1 — declare the writes
 

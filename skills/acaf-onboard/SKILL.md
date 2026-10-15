@@ -38,7 +38,7 @@ Create these files (keep every one SHORT — a record, not an essay):
 - `acaf/vision_principles.md` — 5–8 numbered principles, seeded from the interview plus these defaults: (1) If it isn't recorded, it didn't happen. (2) Report honestly — a step that changed nothing is a failure, not a success. (3) Small bounded slices; do obvious small fixes right after the slice, and park only non-trivial discoveries — never derail. (4) The user decides direction; the agent decides implementation detail. (5) Verify with the project's real commands, never invented ones. (6) Quality first, then cost; limits come from the user, not the agent.
 - `acaf/initiative_manifest.md` — sections `## Active Initiative` ("None.") and `## Completed`.
 - `acaf/follow_up_backlog.md` — "Parked ideas land here as `FB-<n>` entries with one-line context."
-- `acaf/lessons.md` — a `# Lessons` heading and one line: "Each course correction from the user becomes an `L-<n>` thinking habit here (see `acaf-lesson`)."
+- `acaf/lessons.md` (unless the project already keeps a lessons file, such as `acaf/lessons_learned.md`: then use that one) — a `# Lessons` heading and one line: "Each course correction from the user becomes an `L-<n>` thinking habit here (see `acaf-lesson`)."
 - `acaf/change_log.md`, `acaf/deviation_log.md` — headed, empty. Deviations will be `DEV-<n>` entries: what diverged from the plan and why.
 - `acaf/decisions/` — empty folder (plan writes into it).
 - `acaf/handoff_summary.md` — two lines: what this project is, and "Next: plan the first initiative (`/acaf-plan`)."

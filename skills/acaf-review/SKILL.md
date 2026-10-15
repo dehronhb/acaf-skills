@@ -11,7 +11,7 @@ The builder must not grade their own homework. The reviewer gets a **fresh conte
 
 - The diff: `git diff <base>..HEAD` for the slice commit(s) under review (or `git show` per commit).
 - The slice's definition of done + the initiative's acceptance criteria (from `acaf/initiative_manifest.md`).
-- The decision record for the initiative, `acaf/vision_principles.md`, and `acaf/lessons.md` if present.
+- The decision record for the initiative, `acaf/vision_principles.md`, and the project's lessons file (`acaf/lessons*.md`) if present.
 
 ## Step 2 — spawn the reviewer
 

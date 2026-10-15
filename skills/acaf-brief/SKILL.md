@@ -12,7 +12,7 @@ This changes nothing. Don't start any work in this turn.
 
 ## First, find out (don't answer from memory)
 
-- If the project has an `acaf/` folder, read `initiative_manifest.md`, `handoff_summary.md`, the tail of `change_log.md` and `deviation_log.md`, `follow_up_backlog.md`, and `lessons.md` if present.
+- If the project has an `acaf/` folder, read `initiative_manifest.md`, `handoff_summary.md`, the tail of `change_log.md` and `deviation_log.md`, `follow_up_backlog.md`, and the lessons file (`lessons*.md`) if present.
 - Run `git status` and `git log --oneline -5`.
 - Use this conversation for anything the files don't hold yet: decisions just made, questions still open.
 - If anything is unclear or the records disagree with the code, say so in the brief rather than guessing.
