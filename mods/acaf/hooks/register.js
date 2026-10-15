@@ -12,10 +12,15 @@
 const PREPARE_AT = 200000
 const CONDENSE_AT = 250000
 
-// Whether the agent has had the prepare note since the last condensing, and
-// whether a condensing this mod started is still running. Reset on reload.
+// Condensing is refused while a turn is still wrapping up, so it is retried
+// after these delays, and called off when a new turn starts.
+const CONDENSE_DELAYS = [3000, 10000, 30000, 90000]
+
+// Whether the agent has had the prepare note since the last condensing, whether
+// a condensing is scheduled or running, and its pending timer. Reset on reload.
 let prepared = false
 let condensing = false
+let condenseTimer = null
 
 // One-step picks from a "What's next" menu. Exact matches only: these are never
 // corrections, so they skip the model call.
@@ -122,6 +127,45 @@ async function contextTokens($) {
   }
 }
 
+// Keeps the last 200 lines of what the mod did in debug.log beside the mod, so a
+// silent failure can be found later. Never throws.
+async function debugLog($, text) {
+  try {
+    const path = $.plugin.root + '/debug.log'
+    const old = (await $.fs.exists(path)) ? await $.fs.read(path) : ''
+    const lines = (old + new Date().toISOString() + ' ' + text + '\n').split('\n').filter(Boolean).slice(-200)
+    await $.fs.write(path, lines.join('\n') + '\n')
+  } catch {
+    // Logging is best effort.
+  }
+}
+
+// Tries to condense after the attempt's delay, then retries while the engine refuses.
+function scheduleCondense($, attempt) {
+  if (attempt >= CONDENSE_DELAYS.length) {
+    condensing = false
+    condenseTimer = null
+    debugLog($, 'condense: gave up after ' + attempt + ' attempts')
+    return
+  }
+  condenseTimer = $.clock.after(CONDENSE_DELAYS[attempt], async () => {
+    condenseTimer = null
+    try {
+      const result = await $.session.compact({ instructions: CONDENSE_INSTRUCTIONS })
+      if (result && result.skip) {
+        await debugLog($, 'condense: skipped: ' + result.skip)
+      } else {
+        prepared = false
+        await debugLog($, 'condense: done on attempt ' + (attempt + 1))
+      }
+      condensing = false
+    } catch (err) {
+      await debugLog($, 'condense: attempt ' + (attempt + 1) + ' refused: ' + (err && err.message))
+      scheduleCondense($, attempt + 1)
+    }
+  })
+}
+
 // True once per stretch of conversation, when it first passes PREPARE_AT in an ACAF project.
 async function shouldPrepare($) {
   if (prepared || (await contextTokens($)) < PREPARE_AT) return false
@@ -200,22 +244,28 @@ export function register(on) {
     return { ...result, additionalContext: [...(result.additionalContext ?? []), PREPARE_NOTE] }
   })
 
-  // Condense at the end of a main-conversation turn, when nothing is in flight.
+  // Condense after a main-conversation turn ends, when nothing is in flight.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId || e.isAborted || condensing) return result
-    if ((await contextTokens($)) < CONDENSE_AT || !(await findAcafRoot($))) return result
+    const tokens = await contextTokens($)
+    if (tokens < CONDENSE_AT || !(await findAcafRoot($))) return result
     condensing = true
-    $.clock.after(1000, async () => {
-      try {
-        await $.session.compact({ instructions: CONDENSE_INSTRUCTIONS })
-        prepared = false
-      } catch {
-        // The engine's own compaction near the model's limit still applies.
-      }
-      condensing = false
-    })
+    await debugLog($, 'condense: scheduled at ' + tokens + ' tokens')
+    scheduleCondense($, 0)
     return result
+  })
+
+  // A new turn means the user (or a notification) is talking: call off a pending condense.
+  // The next turn's end schedules it again.
+  on('turn.start', async ($, e, next) => {
+    if (condenseTimer && !e.agentId) {
+      condenseTimer.cancel()
+      condenseTimer = null
+      condensing = false
+      await debugLog($, 'condense: called off, a new turn started')
+    }
+    return next(e)
   })
 
   // Any condensing, including the engine's own, starts a new stretch of conversation.
