@@ -5,6 +5,17 @@
 //   2. After a compaction or a resume, the agent re-orients from the records.
 //   3. A `direction` tool shows the user an options card before an unsure,
 //      costly move, and logs the choice.
+//   4. Long conversations are condensed at about 250k tokens, at the end of a
+//      turn, after the agent has been told at about 200k to save its place.
+//      Long contexts make answers worse and every turn dearer.
+
+const PREPARE_AT = 200000
+const CONDENSE_AT = 250000
+
+// Whether the agent has had the prepare note since the last condensing, and
+// whether a condensing this mod started is still running. Reset on reload.
+let prepared = false
+let condensing = false
 
 // One-step picks from a "What's next" menu. Exact matches only: these are never
 // corrections, so they skip the model call.
@@ -27,6 +38,17 @@ const LESSON_NOTE =
 const REORIENT_NOTE =
   'This conversation was just compacted or resumed. Before continuing, re-read CLAUDE.md and run ' +
   'acaf-pickup, and resume from the acaf/ records rather than from the summary.'
+
+const PREPARE_NOTE =
+  'This conversation is nearing 250k tokens and will be condensed when your current reply ends. At your ' +
+  'next stopping point, bring the acaf/ records up to date so nothing is lost: change_log.md rows, the ' +
+  "manifest's slice checkboxes, any DEV- or L- entries, and handoff_summary.md with where you are, what the " +
+  'user decided this session, and the exact next step.'
+
+const CONDENSE_INSTRUCTIONS =
+  'Keep: the active initiative and slice; every decision the user made in this conversation and why; ' +
+  "the user's corrections and the lessons recorded; questions waiting on the user; the exact next step. " +
+  'The acaf/ records hold everything else, so summarize the rest briefly.'
 
 const JUDGE_SYSTEM = [
   'You help an AI coding agent notice when the person it works for is steering it back.',
@@ -90,6 +112,24 @@ async function findAcafRoot($) {
   return null
 }
 
+// Tokens in the live context, from the free status-line figures, or 0 when unknown.
+async function contextTokens($) {
+  try {
+    const usage = await $.session.usage()
+    return (usage && usage.context && usage.context.tokens) || 0
+  } catch {
+    return 0
+  }
+}
+
+// True once per stretch of conversation, when it first passes PREPARE_AT in an ACAF project.
+async function shouldPrepare($) {
+  if (prepared || (await contextTokens($)) < PREPARE_AT) return false
+  if (!(await findAcafRoot($))) return false
+  prepared = true
+  return true
+}
+
 // Only messages the person typed are judged: not notifications, scheduled prompts or other agents.
 function isFromPerson(e) {
   const kind = e.origin && e.origin.kind
@@ -149,7 +189,40 @@ export function register(on) {
     if (!(await findAcafRoot($))) return next(e)
     const notes = [ROUTE_NOTE]
     if (isFromPerson(e) && !isLoopCommand(e.text) && (await isCorrection($, e.text))) notes.push(LESSON_NOTE)
+    if (await shouldPrepare($)) notes.push(PREPARE_NOTE)
     return next({ ...e, context: [...(e.context ?? []), ...notes] })
+  })
+
+  // Long autonomous runs get no new prompts, so the prepare note can also arrive after a tool call.
+  on('classic.PostToolUse', async ($, e, next) => {
+    const result = (await next(e)) || {}
+    if (e.agent_id || !(await shouldPrepare($))) return result
+    return { ...result, additionalContext: [...(result.additionalContext ?? []), PREPARE_NOTE] }
+  })
+
+  // Condense at the end of a main-conversation turn, when nothing is in flight.
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId || e.isAborted || condensing) return result
+    if ((await contextTokens($)) < CONDENSE_AT || !(await findAcafRoot($))) return result
+    condensing = true
+    $.clock.after(1000, async () => {
+      try {
+        await $.session.compact({ instructions: CONDENSE_INSTRUCTIONS })
+        prepared = false
+      } catch {
+        // The engine's own compaction near the model's limit still applies.
+      }
+      condensing = false
+    })
+    return result
+  })
+
+  // Any condensing, including the engine's own, starts a new stretch of conversation.
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (!result || !result.skip) prepared = false
+    return result
   })
 
   on('classic.SessionStart', async ($, e, next) => {

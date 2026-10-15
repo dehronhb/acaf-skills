@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const USAGE = { input_tokens: 10, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
@@ -156,6 +156,57 @@ test('the direction check asks the user, returns the choice, and logs it', async
   expect(questions[0]).toContain('Which way?')
   expect(out.result).toContain('chose "One-minute clips"')
   expect(writes[0]).toContain('Chose One-minute clips')
+})
+
+function stubTokens(on, tokens: number) {
+  on('session.usage', () => ({ value: { context: { tokens, window: 1000000, percent: tokens / 10000 }, rateLimits: [] } }))
+}
+
+test('near 250k the agent is told once to save its place', async ($, on) => {
+  const seen = []
+  stubProject(on, true)
+  stubTokens(on, 210000)
+  capturePrompt(on, seen)
+
+  await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } })
+  await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context.length).toBe(2)
+  expect(seen[0].context[1]).toContain('handoff_summary.md')
+  expect(seen[1].context.length).toBe(1)
+})
+
+test('past 250k the conversation is condensed after the turn ends', async ($, on) => {
+  const condensed: string[] = []
+  const clock = mock.clock(on)
+  stubProject(on, true)
+  stubTokens(on, 260000)
+  on('turn.complete', () => ({ text: '' }))
+  on('session.compact', ($, e) => {
+    condensed.push(e.instructions)
+    return { messages: [{ role: 'user', text: 'Summary of the conversation so far.', toolUses: [] }] }
+  })
+
+  await $.turn.complete({ turnId: 't1', answer: 'Done.', durationMs: 1000, isAborted: false, usage: null })
+  expect(condensed.length).toBe(0)
+  await clock.advance(1000)
+  expect(condensed.length).toBe(1)
+  expect(condensed[0]).toContain('every decision the user made')
+})
+
+test('under 250k nothing is condensed', async ($, on) => {
+  const condensed: string[] = []
+  const clock = mock.clock(on)
+  stubProject(on, true)
+  stubTokens(on, 120000)
+  on('turn.complete', () => ({ text: '' }))
+  on('session.compact', ($, e) => {
+    condensed.push(e.instructions)
+    return { messages: [{ role: 'user', text: 'Summary of the conversation so far.', toolUses: [] }] }
+  })
+
+  await $.turn.complete({ turnId: 't1', answer: 'Done.', durationMs: 1000, isAborted: false, usage: null })
+  await clock.advance(5000)
+  expect(condensed.length).toBe(0)
 })
 
 test('a dismissed direction check approves nothing', async ($, on) => {
