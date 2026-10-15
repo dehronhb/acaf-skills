@@ -1,6 +1,6 @@
 ---
-name: brief
-description: A skimmable brief for the user, on request only - where the project stands, the real options from here, and the trade-off of each, in plain words. Run only when the user types /brief.
+name: acaf-brief
+description: A skimmable brief for the user, on request only - where the project stands, the real options from here, and the trade-off of each, in plain words. Run only when the user types /acaf-brief.
 disable-model-invocation: true
 ---
 

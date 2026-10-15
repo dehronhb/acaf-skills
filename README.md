@@ -50,7 +50,7 @@ The app does not port to Claude Code (and doesn't need to — Claude Code alread
 | **`/acaf-review`** | Spawns a fresh-context reviewer agent to adversarially check the slice diff against plan + criteria | After a slice (the build skill asks for it on risky slices) |
 | **`/acaf-accept`** | Walks every acceptance criterion against real evidence, graduates them into the contract, updates the as-built index, writes the handoff, and hands you the batched human checklist | At the end of an initiative |
 | **`/acaf-pickup`** | Reads the records and reports where things stand + the exact next step | First thing in every new session |
-| **`/brief`** | A one-screen brief, for you only (agents never run it on their own): where the project stands, 2–4 real options, and what each gets you, costs, and gives up, in plain words | Whenever you want to decide quickly without reading the history |
+| **`/acaf-brief`** | A one-screen brief, for you only (agents never run it on their own): where the project stands, 2–4 real options, and what each gets you, costs, and gives up, in plain words | Whenever you want to decide quickly without reading the history |
 
 Plus these supporting pieces:
 
