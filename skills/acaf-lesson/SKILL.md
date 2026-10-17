@@ -1,6 +1,6 @@
 ---
 name: acaf-lesson
-description: Turn a course correction into a lesson. When the user steers you back (a wrong assumption, a rejected approach, a misread request, a shortcut they didn't ask for, work handed back, something rebuilt that already exists, something called done that isn't), name what you assumed and what is true, find everywhere else that assumption shaped the work, fix the route, and record the lesson as a thinking habit in the project's lessons file (acaf/lessons.md or the one it already keeps). Use on any redirect, including "why did you…", "are you sure…" and "is this the right path?".
+description: Turn a course correction into a lesson. When the user steers you back (a wrong assumption, a rejected approach, a misread request, a shortcut they didn't ask for, work handed back, something rebuilt that already exists, something called done that isn't, or a bug they found that your own checks should have caught), name what you assumed and what is true, find everywhere else that assumption shaped the work, fix the route, and record the lesson as a thinking habit in the project's lessons file (acaf/lessons.md or the one it already keeps). Use on any redirect, including "why did you…", "are you sure…" and "is this the right path?".
 ---
 
 # ACAF Lesson — learn the thinking, not just the fix
@@ -24,6 +24,15 @@ Then name which trap it was (more than one can apply):
 9. **Grading my own homework:** called it done by my own check, not by the user's experience.
 10. **The letter of a rule:** followed a rule or an old constraint against its purpose.
 11. **Code for judgment:** used rules, templates or thresholds where a model should judge meaning.
+12. **The user found my bug:** a problem reached the user that my own checks should have caught first.
+
+## Step 1b — when the user found a bug: why didn't I find it first?
+
+A bug the user hits is two mistakes: the one that made the bug, and the gap in your checking that let it through. Bugs should be caught before they reach the user, so answer both:
+
+- **Why the bug happened:** the assumption behind it (Step 1).
+- **Why your checks missed it:** what you tested and what you didn't, such as the happy path but not the trip back, one starting spot but not others, a script but not the real click, a log but not the screen.
+- **The check that would have caught it:** add it now, for the whole class of bug, not just this instance: a test, a scripted run from several starting points, a screenshot from the user's view. Run it, and make it part of how you verify this kind of change from now on.
 
 ## Step 2 — find everywhere else it applies
 
@@ -42,6 +51,7 @@ Append to the project's lessons file. That's `acaf/lessons.md`, or the one the p
 - Trap: <number and name from Step 1>
 - What happened: <one line: what I did, what the user said>
 - The habit: <how to think next time, general enough to apply beyond this case>
+- The check (for a bug the user found): <how I'll catch this kind of bug myself from now on>
 - Scope: project | kit
 ```
 

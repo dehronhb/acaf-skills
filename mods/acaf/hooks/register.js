@@ -31,7 +31,8 @@ const ROUTE_NOTE =
 const LESSON_NOTE =
   'The user is correcting course. Before anything else, invoke acaf-lesson: say in one sentence what you ' +
   'assumed and what is actually true, find everywhere else that assumption shaped the work, and record the ' +
-  'lesson. Then continue on the corrected route.'
+  'lesson. If the user found a bug, also work out why your own checks missed it, and add the check that ' +
+  'would catch that kind of bug before it reaches them. Then continue on the corrected route.'
 
 const REORIENT_NOTE =
   'This conversation was just compacted or resumed. Before continuing, re-read CLAUDE.md and run ' +
@@ -54,8 +55,9 @@ const JUDGE_SYSTEM = [
     'about the problem: a wrong assumption about the person, their product or the world; a misread request; ' +
     'an approach the person rejects or questions (why did you, are you sure, is this the right path); a limit ' +
     "or shortcut the person didn't ask for; work handed back that the agent could do itself; something built " +
-    "from scratch that already exists; something called done or impossible that isn't; or one instance fixed " +
-    'where the person wanted every instance.',
+    "from scratch that already exists; something called done or impossible that isn't; one instance fixed " +
+    "where the person wanted every instance; or a bug or problem the person found in the agent's work, " +
+    'such as something that broke or behaved wrongly when they tried it.',
   '',
   'Answer NOT when the reply picks, approves or goes with something the agent offered or recommended; asks ' +
     'the agent to do a task (open, run, set up, research, plan something); asks a question, including what the ' +
