@@ -1,0 +1,6 @@
+{
+  "name": "next-steps",
+  "version": "0.1.0",
+  "description": "A plain-language panel above the prompt: what you can do next and what each choice does, or that background work is running and you can wait",
+  "author": { "name": "Dehron Hite-Benson" }
+}
