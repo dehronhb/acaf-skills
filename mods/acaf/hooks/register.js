@@ -5,22 +5,15 @@
 //   2. After a compaction or a resume, the agent re-orients from the records.
 //   3. A `direction` tool shows the user an options card before an unsure,
 //      costly move, and logs the choice.
-//   4. Long conversations are condensed at about 250k tokens, at the end of a
-//      turn, after the agent has been told at about 200k to save its place.
-//      Long contexts make answers worse and every turn dearer.
+//   4. At about 200k tokens the agent is told to save its place in the records.
+//      The condensing itself is Claude Code's own: each ACAF project sets
+//      `autoCompactWindow: 250000` in .claude/settings.local.json. (A mod can't
+//      condense in the Desktop app: $.session.compact is refused in SDK sessions.)
 
 const PREPARE_AT = 200000
-const CONDENSE_AT = 250000
 
-// Condensing is refused while a turn is still wrapping up, so it is retried
-// after these delays, and called off when a new turn starts.
-const CONDENSE_DELAYS = [3000, 10000, 30000, 90000]
-
-// Whether the agent has had the prepare note since the last condensing, whether
-// a condensing is scheduled or running, and its pending timer. Reset on reload.
+// Whether the agent has had the prepare note since the last condensing. Reset on reload.
 let prepared = false
-let condensing = false
-let condenseTimer = null
 
 // One-step picks from a "What's next" menu. Exact matches only: these are never
 // corrections, so they skip the model call.
@@ -45,15 +38,13 @@ const REORIENT_NOTE =
   'acaf-pickup, and resume from the acaf/ records rather than from the summary.'
 
 const PREPARE_NOTE =
-  'This conversation is nearing 250k tokens and will be condensed when your current reply ends. At your ' +
-  'next stopping point, bring the acaf/ records up to date so nothing is lost: change_log.md rows, the ' +
-  "manifest's slice checkboxes, any DEV- or L- entries, and handoff_summary.md with where you are, what the " +
-  'user decided this session, and the exact next step.'
+  'This conversation is nearing 250k tokens and will be condensed soon. At your next stopping point, ' +
+  'bring the acaf/ records up to date so nothing is lost: change_log.md rows, the manifest\'s slice ' +
+  'checkboxes, any DEV- or lesson entries, and handoff_summary.md with where you are, what the user decided ' +
+  'this session, and the exact next step.'
 
-const CONDENSE_INSTRUCTIONS =
-  'Keep: the active initiative and slice; every decision the user made in this conversation and why; ' +
-  "the user's corrections and the lessons recorded; questions waiting on the user; the exact next step. " +
-  'The acaf/ records hold everything else, so summarize the rest briefly.'
+// Prompts that are never the person talking: the summary a compaction submits.
+const NOT_TYPED_PREFIXES = ['This session is being continued from a previous conversation']
 
 const JUDGE_SYSTEM = [
   'You help an AI coding agent notice when the person it works for is steering it back.',
@@ -66,9 +57,10 @@ const JUDGE_SYSTEM = [
     "from scratch that already exists; something called done or impossible that isn't; or one instance fixed " +
     'where the person wanted every instance.',
   '',
-  'Answer NOT when the reply picks or approves something the agent offered, asks a neutral question, adds a ' +
-    'new idea or requirement the agent had no way to know, gives taste feedback on work that otherwise went ' +
-    'the agreed way, or is unrelated chat.',
+  'Answer NOT when the reply picks, approves or goes with something the agent offered or recommended; asks ' +
+    'the agent to do a task (open, run, set up, research, plan something); asks a question, including what the ' +
+    'agent can see or do; adds a new idea or requirement the agent had no way to know; gives taste feedback on ' +
+    'work that otherwise went the agreed way; or is unrelated chat.',
   '',
   'Reply with exactly one word: CORRECTION or NOT.',
 ].join('\n')
@@ -140,32 +132,6 @@ async function debugLog($, text) {
   }
 }
 
-// Tries to condense after the attempt's delay, then retries while the engine refuses.
-function scheduleCondense($, attempt) {
-  if (attempt >= CONDENSE_DELAYS.length) {
-    condensing = false
-    condenseTimer = null
-    debugLog($, 'condense: gave up after ' + attempt + ' attempts')
-    return
-  }
-  condenseTimer = $.clock.after(CONDENSE_DELAYS[attempt], async () => {
-    condenseTimer = null
-    try {
-      const result = await $.session.compact({ instructions: CONDENSE_INSTRUCTIONS })
-      if (result && result.skip) {
-        await debugLog($, 'condense: skipped: ' + result.skip)
-      } else {
-        prepared = false
-        await debugLog($, 'condense: done on attempt ' + (attempt + 1))
-      }
-      condensing = false
-    } catch (err) {
-      await debugLog($, 'condense: attempt ' + (attempt + 1) + ' refused: ' + (err && err.message))
-      scheduleCondense($, attempt + 1)
-    }
-  })
-}
-
 // True once per stretch of conversation, when it first passes PREPARE_AT in an ACAF project.
 async function shouldPrepare($) {
   if (prepared || (await contextTokens($)) < PREPARE_AT) return false
@@ -181,6 +147,7 @@ function isFromPerson(e) {
 }
 
 function isLoopCommand(text) {
+  if (NOT_TYPED_PREFIXES.some((p) => text.startsWith(p))) return true
   const t = text.trim().toLowerCase().replace(/[.!\s]+$/, '')
   return t.startsWith('/') || LOOP_COMMANDS.has(t)
 }
@@ -203,7 +170,9 @@ async function isCorrection($, text) {
       timeoutMs: 8000,
     })
     const answer = typeof reply === 'string' ? reply : reply && reply.isAnswered ? reply.text : ''
-    return answer.trim().toUpperCase().startsWith('CORRECTION')
+    const isIt = answer.trim().toUpperCase().startsWith('CORRECTION')
+    await debugLog($, 'judge: ' + (isIt ? 'CORRECTION' : 'not') + ': ' + text.replace(/\s+/g, ' ').slice(0, 100))
+    return isIt
   } catch {
     return false
   }
@@ -244,31 +213,7 @@ export function register(on) {
     return { ...result, additionalContext: [...(result.additionalContext ?? []), PREPARE_NOTE] }
   })
 
-  // Condense after a main-conversation turn ends, when nothing is in flight.
-  on('turn.complete', async ($, e, next) => {
-    const result = await next(e)
-    if (e.agentId || e.isAborted || condensing) return result
-    const tokens = await contextTokens($)
-    if (tokens < CONDENSE_AT || !(await findAcafRoot($))) return result
-    condensing = true
-    await debugLog($, 'condense: scheduled at ' + tokens + ' tokens')
-    scheduleCondense($, 0)
-    return result
-  })
-
-  // A new turn means the user (or a notification) is talking: call off a pending condense.
-  // The next turn's end schedules it again.
-  on('turn.start', async ($, e, next) => {
-    if (condenseTimer && !e.agentId) {
-      condenseTimer.cancel()
-      condenseTimer = null
-      condensing = false
-      await debugLog($, 'condense: called off, a new turn started')
-    }
-    return next(e)
-  })
-
-  // Any condensing, including the engine's own, starts a new stretch of conversation.
+  // Any condensing starts a new stretch of conversation.
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     if (!result || !result.skip) prepared = false
@@ -279,6 +224,7 @@ export function register(on) {
     const result = (await next(e)) || {}
     if (e.source !== 'compact' && e.source !== 'resume') return result
     if (!(await findAcafRoot($))) return result
+    if (e.source === 'compact') prepared = false
     return { ...result, additionalContext: [...(result.additionalContext ?? []), REORIENT_NOTE] }
   })
 

@@ -1,4 +1,4 @@
-import { expect, mock, test } from 'claude-code/testing'
+import { expect, test } from 'claude-code/testing'
 
 const USAGE = { input_tokens: 10, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
@@ -175,78 +175,16 @@ test('near 250k the agent is told once to save its place', async ($, on) => {
   expect(seen[1].context.length).toBe(1)
 })
 
-test('past 250k the conversation is condensed after the turn ends', async ($, on) => {
-  const condensed: string[] = []
-  const clock = mock.clock(on)
+test('a compaction summary is never judged as a correction', async ($, on) => {
+  const calls: string[] = []
+  const seen = []
   stubProject(on, true)
-  stubTokens(on, 260000)
-  on('turn.complete', () => ({ text: '' }))
-  on('session.compact', ($, e) => {
-    condensed.push(e.instructions)
-    return { messages: [{ role: 'user', text: 'Summary of the conversation so far.', toolUses: [] }] }
-  })
+  stubModel(on, 'CORRECTION', calls)
+  capturePrompt(on, seen)
 
-  await $.turn.complete({ turnId: 't1', answer: 'Done.', durationMs: 1000, isAborted: false, usage: null })
-  expect(condensed.length).toBe(0)
-  await clock.advance(3000)
-  expect(condensed.length).toBe(1)
-  expect(condensed[0]).toContain('every decision the user made')
-})
-
-test('a refused condense is retried until it goes through', async ($, on) => {
-  let calls = 0
-  const clock = mock.clock(on)
-  stubProject(on, true)
-  stubTokens(on, 260000)
-  on('turn.complete', () => ({ text: '' }))
-  on('session.compact', () => {
-    calls += 1
-    // A stub that throws is skipped, so the call rejects, as the engine's does mid-turn
-    if (calls === 1) throw new Error('a turn is running')
-    return { messages: [{ role: 'user', text: 'Summary of the conversation so far.', toolUses: [] }] }
-  })
-
-  await $.turn.complete({ turnId: 't1', answer: 'Done.', durationMs: 1000, isAborted: false, usage: null })
-  await clock.advance(3000)
-  expect(calls).toBe(1)
-  await clock.advance(10000)
-  expect(calls).toBe(2)
-  await clock.advance(200000)
-  expect(calls).toBe(2)
-})
-
-test('a new turn calls off a pending condense', async ($, on) => {
-  let calls = 0
-  const clock = mock.clock(on)
-  stubProject(on, true)
-  stubTokens(on, 260000)
-  on('turn.complete', () => ({ text: '' }))
-  on('turn.start', ($, e) => ({ turnId: e.turnId }))
-  on('session.compact', () => {
-    calls += 1
-    return { messages: [{ role: 'user', text: 'Summary.', toolUses: [] }] }
-  })
-
-  await $.turn.complete({ turnId: 't1', answer: 'Done.', durationMs: 1000, isAborted: false, usage: null })
-  await $.turn.start({ turnId: 't2' })
-  await clock.advance(200000)
-  expect(calls).toBe(0)
-})
-
-test('under 250k nothing is condensed', async ($, on) => {
-  const condensed: string[] = []
-  const clock = mock.clock(on)
-  stubProject(on, true)
-  stubTokens(on, 120000)
-  on('turn.complete', () => ({ text: '' }))
-  on('session.compact', ($, e) => {
-    condensed.push(e.instructions)
-    return { messages: [{ role: 'user', text: 'Summary of the conversation so far.', toolUses: [] }] }
-  })
-
-  await $.turn.complete({ turnId: 't1', answer: 'Done.', durationMs: 1000, isAborted: false, usage: null })
-  await clock.advance(5000)
-  expect(condensed.length).toBe(0)
+  await $.prompt.submit({ text: 'This session is being continued from a previous conversation that ran out of context.', wait: false, origin: { kind: 'composer' } })
+  expect(calls.length).toBe(0)
+  expect(seen[0].context.length).toBe(1)
 })
 
 test('a dismissed direction check approves nothing', async ($, on) => {
