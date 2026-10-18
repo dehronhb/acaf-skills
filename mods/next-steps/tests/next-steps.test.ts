@@ -21,7 +21,7 @@ function stubBand(on) {
 
 async function finishTurn($, clock, answer = 'Say "1" to build it, or "2" to test first.') {
   await $.turn.complete({ turnId: 't1', answer, durationMs: 1000, isAborted: false, usage: null })
-  await clock.settle()
+  await clock.advance(2500)
 }
 
 test('after a reply that needs a choice, the band shows the decision and each option', async ($, on) => {
@@ -95,12 +95,34 @@ test('an unusable model reply shows nothing rather than something wrong', async 
   expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
 })
 
-test('pressing an option puts its words in the prompt box', async ($, on) => {
+test('pressing an option sends its words as the user', async ($, on) => {
+  const clock = mock.clock(on)
+  const sent: { text: string; asUser?: boolean }[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push({ text: e.text, asUser: e.origin && e.origin.asUser })
+    return { text: e.text }
+  })
+  stubModel(on, { state: 'choose', headline: 'Pick one', options: [{ say: 'review it', does: 'I run the reviewer.' }] })
+
+  await finishTurn($, clock)
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ key: 'opt-0' })).toBeDefined()
+  await ui.press({ key: 'opt-0' })
+  expect(sent).toEqual([{ text: 'review it', asUser: true }])
+})
+
+test('if sending is refused, the words go into the prompt box', async ($, on) => {
   const clock = mock.clock(on)
   const filled: string[] = []
   stubBand(on)
   on('turn.complete', () => ({ text: '' }))
   on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', () => {
+    throw new Error('not here')
+  })
   on('prompt.fill', ($, e) => {
     filled.push(e.text)
     return { isFilled: true }
@@ -111,4 +133,45 @@ test('pressing an option puts its words in the prompt box', async ($, on) => {
   const ui = await $.ui.mount(BAND('desktop'))
   await ui.press({ key: 'opt-0' })
   expect(filled).toEqual(['review it'])
+})
+
+test("Claude Code's next-prompt guess is given to the summary model", async ($, on) => {
+  const clock = mock.clock(on)
+  const prompts: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.suggest', () => ({ isShown: true }))
+  on('model.complete', ($, e) => {
+    prompts.push(e.prompt)
+    return { value: { isAnswered: true, text: JSON.stringify({ state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
+  })
+
+  await $.turn.complete({ turnId: 't1', answer: 'All done.', durationMs: 1000, isAborted: false, usage: null })
+  await $.prompt.suggest({ text: "Close the prototype, I'm done testing", origin: { kind: 'suggestion' } })
+  await clock.advance(2500)
+  expect(prompts.length).toBe(1)
+  expect(prompts[0]).toContain("Close the prototype, I'm done testing")
+})
+
+test('a guess that arrives after the summary gets the summary rewritten once', async ($, on) => {
+  const clock = mock.clock(on)
+  const prompts: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.suggest', () => ({ isShown: true }))
+  on('model.complete', ($, e) => {
+    prompts.push(e.prompt)
+    return { value: { isAnswered: true, text: JSON.stringify({ state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
+  })
+
+  await $.turn.complete({ turnId: 't1', answer: 'All done.', durationMs: 1000, isAborted: false, usage: null })
+  await clock.advance(2500)
+  await $.prompt.suggest({ text: 'Run the tests', origin: { kind: 'suggestion' } })
+  await clock.advance(100)
+  await $.prompt.suggest({ text: 'Run the tests again', origin: { kind: 'suggestion' } })
+  await clock.advance(100)
+  expect(prompts.length).toBe(2)
+  expect(prompts[1]).toContain('Run the tests')
 })

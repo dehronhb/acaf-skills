@@ -4,8 +4,18 @@
 //     the user can do next and what each choice does, or that background work is
 //     running and there is nothing to do but wait, or that nothing is needed.
 //   - Background agents still running always show as "wait", whatever the reply says.
-//   - Each option is a button that puts its words into the prompt box.
+//   - Claude Code's own guess at the user's next prompt (the dim text in the empty
+//     prompt box) is passed to the model too, so a real next step it names is not
+//     missing from the panel. The model decides whether it is new or a repeat of an
+//     option in other words; code can't judge that.
+//   - Each option is one button, the whole line (a mod can't make buttons bigger),
+//     and pressing it sends those words as the user's next message. If sending is
+//     refused, the words go into the prompt box instead.
 // The panel hides while Claude is working and comes back when the reply ends.
+
+// How long to wait after a reply ends before summarizing, so Claude Code's
+// next-prompt guess, which is written just after the reply, can be included.
+const SUGGESTION_WAIT_MS = 2500
 
 const SUMMARY_SYSTEM = [
   "You summarize the end of an AI coding agent's reply for a busy person who only skims.",
@@ -23,10 +33,18 @@ const SUMMARY_SYSTEM = [
   '  options: [] unless the agent also offers something to do meanwhile.',
   '- "nothing": the reply needs nothing from the person. headline: what was done, at most 12 words.',
   '  options: at most 2 optional next steps the agent suggested.',
+  '',
+  "You may also get Claude Code's own guess at what the person will type next. If it is a sensible next step",
+  'and does not mean the same as an option you already have, add it as an option with say set to its exact',
+  'words. If it means the same as one of your options, keep one option, worded the clearer way.',
 ].join('\n')
 
-// The latest summary, or null when there is none to show. Reset on reload.
+// The latest summary, or null when there is none to show; the last reply's text and
+// Claude Code's next-prompt guess for it, so a late guess can be folded in. Reset on reload.
 let summary = null
+let lastAnswer = ''
+let suggestion = ''
+let summarizedWithSuggestion = false
 
 function clip(text, limit) {
   return text.length <= limit ? text : '...' + text.slice(text.length - limit)
@@ -62,14 +80,19 @@ async function runningAgents($) {
 
 // Writes the summary for a finished reply, then redraws the panel. Never throws.
 async function summarize($, answer) {
+  const guess = suggestion
+  summarizedWithSuggestion = Boolean(guess)
   try {
     const reply = await $.model.complete({
       model: 'haiku',
       system: SUMMARY_SYSTEM,
-      prompt: "The end of the agent's reply:\n" + clip(answer, 4000),
+      prompt:
+        "The end of the agent's reply:\n" + clip(answer, 4000) +
+        (guess ? "\n\nClaude Code's guess at what the person will type next:\n" + guess : ''),
       maxTokens: 400,
       timeoutMs: 15000,
     })
+    if (answer !== lastAnswer) return // a newer reply has come in since
     const text = typeof reply === 'string' ? reply : reply && reply.isAnswered ? reply.text : ''
     const parsed = parseSummary(text)
     const busy = await runningAgents($)
@@ -84,12 +107,19 @@ async function summarize($, answer) {
   $.ui.invalidate('ui.render')
 }
 
-// Puts an option's words into the prompt box, ready to send.
-async function fillPrompt($, text) {
+// Sends an option's words as the user's own next message. If the app refuses,
+// puts them into the prompt box instead, ready to send.
+async function sendOption($, text) {
+  summary = null
+  $.ui.invalidate('ui.render')
   try {
-    await $.prompt.fill({ text })
+    await $.prompt.submit({ text, asUser: true })
   } catch {
-    // The words are on the panel anyway.
+    try {
+      await $.prompt.fill({ text })
+    } catch {
+      // Nothing more to try; the user can type the words.
+    }
   }
 }
 
@@ -97,6 +127,7 @@ export function register(on) {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) {
       summary = null
+      suggestion = ''
       $.ui.invalidate('ui.render')
     }
     return next(e)
@@ -106,9 +137,23 @@ export function register(on) {
     const result = await next(e)
     if (e.agentId || e.isAborted || !e.answer || !e.answer.trim()) return result
     const answer = e.answer
-    // Summarize after the turn has finished drawing, so the reply isn't held up.
-    $.clock.after(0, () => summarize($, answer))
+    lastAnswer = answer
+    // Summarize a moment after the turn, so the reply isn't held up and the guess can arrive.
+    $.clock.after(SUGGESTION_WAIT_MS, () => summarize($, answer))
     return result
+  })
+
+  // Claude Code's guess at the next prompt. It stays in the box as it is; if it
+  // arrives after the summary was written, the summary is written again with it.
+  on('prompt.suggest', async ($, e, next) => {
+    if (e.origin && e.origin.kind === 'suggestion' && e.text && e.text.trim()) {
+      suggestion = e.text.trim()
+      if (summary && !summarizedWithSuggestion && lastAnswer) {
+        const answer = lastAnswer
+        $.clock.after(0, () => summarize($, answer))
+      }
+    }
+    return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -121,16 +166,9 @@ export function register(on) {
         : s.state === 'choose'
           ? '👉 Your turn: ' + (s.headline || 'pick what happens next')
           : '✓ ' + (s.headline || 'Nothing needed from you')
+    // The whole line is the button, for a bigger target: what you'd say, then what it does.
     const rows = s.options.map((o, i) =>
-      Box({
-        key: 'row-' + i,
-        flexDirection: 'row',
-        columnGap: 1,
-        children: [
-          Button({ key: 'opt-' + i, label: o.say, onPress: () => fillPrompt($, o.say) }),
-          Text({ dimColor: true, wrap: 'wrap', children: [o.does] }),
-        ],
-      }),
+      Button({ key: 'opt-' + i, label: o.does ? o.say + '  →  ' + o.does : o.say, onPress: () => sendOption($, o.say) }),
     )
     return Box({
       flexDirection: 'column',
