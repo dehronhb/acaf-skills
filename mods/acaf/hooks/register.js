@@ -86,11 +86,12 @@ const DIRECTION_SCHEMA = {
         type: 'object',
         properties: {
           label: { type: 'string', description: 'The option in 1 to 5 words.' },
+          gets: { type: 'string', description: 'What the user gets with this option, in plain words (one or two sentences).' },
+          givesUp: { type: 'string', description: 'What the user gives up or risks with this option, in plain words (one or two sentences).' },
           cost: { type: 'string', description: 'Money and time, e.g. "$0, about an hour" or "$8 once, then $0.40 a video".' },
           confidence: { type: 'string', description: 'How sure you are that it works, and why, in a few words.' },
-          tradeoff: { type: 'string', description: 'What it gets the user and what it gives up, in one sentence.' },
         },
-        required: ['label', 'cost', 'confidence', 'tradeoff'],
+        required: ['label', 'gets', 'givesUp', 'cost', 'confidence'],
       },
     },
     recommendation: { type: 'string', description: 'The label of the option you recommend.' },
@@ -235,8 +236,20 @@ export function register(on) {
     if (options.length < 2) {
       return { result: 'A direction check needs 2 to 4 real options, each with its cost, how sure you are, and the trade-off.' }
     }
-    const lines = options.map((o, i) => `${i + 1}. ${o.label}: ${o.cost}; ${o.confidence}. ${o.tradeoff}`)
-    const question = `${e.problem}\n\n${lines.join('\n')}\n\nI recommend ${e.recommendation}: ${e.why}\n\nWhich way?`
+    // One block per option, with its trade-offs on separate bullet lines, so a skimming reader
+    // can compare options line by line. (`tradeoff` is the field's older name, still accepted.)
+    const blocks = options.map((o, i) => {
+      const mark = o.label === e.recommendation ? ' (recommended)' : ''
+      const bullets = [
+        o.gets ? '   • You get: ' + o.gets : '',
+        o.givesUp ? '   • You give up: ' + o.givesUp : '',
+        !o.gets && !o.givesUp && o.tradeoff ? '   • Trade-off: ' + o.tradeoff : '',
+        o.cost ? '   • Cost: ' + o.cost : '',
+        o.confidence ? '   • How sure: ' + o.confidence : '',
+      ].filter(Boolean)
+      return `${i + 1}. ${o.label}${mark}\n${bullets.join('\n')}`
+    })
+    const question = `${e.problem}\n\n${blocks.join('\n\n')}\n\nMy pick: ${e.recommendation}, because ${e.why}\n\nWhich way?`
     const labels = options.map((o) => (o.label === e.recommendation ? o.label + ' (Recommended)' : o.label))
 
     let answer

@@ -53,7 +53,7 @@ Before concluding "I can't" or "it can't be done", try. That conclusion is itsel
 
 ## Step 5 — when you stop, make the choice easy to scan
 
-The user skims, and reads mainly your last message. If the `direction` tool is available (from the ACAF mod), call it with the problem, the options (label, cost, confidence, trade-off), your recommendation and why. It shows the user a card and returns their choice. Otherwise end your message with the same thing, short:
+The user skims, and reads mainly your last message. If the `direction` tool is available (from the ACAF mod), call it with the problem, the options (for each: a short label, what the user gets, what they give up, the cost, and how sure you are), your recommendation and why. The card lays each option out with its trade-offs as bullets. It shows the user a card and returns their choice. Otherwise end your message with the same thing, short:
 
 - The problem, in one line.
 - Each option: what it gets you, what it costs, how sure you are.

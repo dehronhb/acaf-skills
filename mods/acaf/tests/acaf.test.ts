@@ -131,7 +131,7 @@ const CHECK = {
   tool: 'mcp__acaf__direction',
   problem: 'The visual fix needs testing.',
   options: [
-    { label: 'Whole videos', cost: '$8', confidence: 'sure it runs', tradeoff: 'Real conditions, but slow and costly.' },
+    { label: 'Whole videos', gets: 'Real conditions, every case.', givesUp: 'Slow, and the most money.', cost: '$8', confidence: 'sure it runs' },
     { label: 'One-minute clips', cost: '$0.40', confidence: 'fairly sure', tradeoff: 'Covers each case cheaply, misses long-video effects.' },
   ],
   recommendation: 'One-minute clips',
@@ -154,6 +154,9 @@ test('the direction check asks the user, returns the choice, and logs it', async
   const out = await $.tool.call(CHECK)
   expect(questions[0]).toContain('$8')
   expect(questions[0]).toContain('Which way?')
+  expect(questions[0]).toContain('   • You get: Real conditions')
+  expect(questions[0]).toContain('   • Trade-off: Covers each case')
+  expect(questions[0]).toContain('One-minute clips (recommended)')
   expect(out.result).toContain('chose "One-minute clips"')
   expect(writes[0]).toContain('Chose One-minute clips')
 })
