@@ -175,3 +175,94 @@ test('a guess that arrives after the summary gets the summary rewritten once', a
   expect(prompts.length).toBe(2)
   expect(prompts[1]).toContain('Run the tests')
 })
+
+// The done check: the model stub answers the done-check call and the summary call differently.
+function stubDoneCheck(on, verdict: object, calls: { done: number }) {
+  on('session.messages', () => ({
+    value: [
+      { role: 'user', text: 'Fix the login bug.', toolUses: [] },
+      { role: 'assistant', text: '', toolUses: [{ tool_use_id: 't', tool: 'Edit', input: { file_path: 'login.ts' } }] },
+    ],
+  }))
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('model.complete', ($, e) => {
+    if (e.system.includes('claims it has not checked')) {
+      calls.done += 1
+      return { value: { isAnswered: true, text: JSON.stringify(verdict), usage: USAGE } }
+    }
+    return { value: { isAnswered: true, text: JSON.stringify({ state: 'nothing', headline: 'Fixed the login bug.', options: [] }), usage: USAGE } }
+  })
+}
+
+test('an untested "fixed" claim sends the agent back to check, and the panel says so', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: true }, calls)
+
+  await finishTurn($, clock, 'Fixed the login bug.')
+  expect(calls.done).toBe(1)
+  expect(sent.length).toBe(1)
+  expect(sent[0]).toContain('the login bug is fixed')
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ type: 'Text', text: /Checking: the agent said "the login bug is fixed"/ })).toBeDefined()
+})
+
+test('a checked claim passes and the normal panel shows', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: false }, calls)
+
+  await finishTurn($, clock, 'Fixed the login bug.')
+  expect(calls.done).toBe(1)
+  expect(sent.length).toBe(0)
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ type: 'Text', text: /Fixed the login bug/ })).toBeDefined()
+})
+
+test("the reply to a done-check prompt is not checked again, so it can't loop", async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: true }, calls)
+
+  await finishTurn($, clock, 'Fixed the login bug.')
+  await $.turn.complete({ turnId: 't2', answer: 'I tried it: login works now.', durationMs: 1000, isAborted: false, usage: null })
+  await clock.advance(2500)
+  expect(calls.done).toBe(1)
+})
+
+test('if the check prompt cannot be sent, the panel says the claim is not checked', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', () => {
+    throw new Error('not here')
+  })
+  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: true }, calls)
+
+  await finishTurn($, clock, 'Fixed the login bug.')
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ type: 'Text', text: /Not checked yet: the agent said "the login bug is fixed"/ })).toBeDefined()
+})

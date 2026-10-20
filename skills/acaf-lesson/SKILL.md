@@ -55,6 +55,8 @@ Append to the project's lessons file. That's `acaf/lessons.md`, or the one the p
 - Scope: project | kit
 ```
 
+**Then update the file's `## Top habits` list**, at the very top under the title (create it if missing). It holds at most 10 one-line habits: the ones that would most change how an agent works on this project. Fold the new lesson in by merging it with a habit it repeats, or by replacing the weakest one if it matters more. This list is the part every session actually reads and keeps in mind. The full entries below it are the reference: the evidence, and project facts to look up when doing that kind of work. Why: a long lessons file gets recorded but not absorbed. In one project a 250-line file sat beside the same struggles repeating.
+
 Write the habit as a way of thinking, not a rule about this one case: "Before fixing a reported bug, search for every place the same pattern appears", not "Check the badge logic on all screens". Mark **kit** when the habit would help on any project; those get folded into the ACAF kit later.
 
 Lessons go in the project's records, not private memory, so every future session and every other agent on the project reads them. `acaf-pickup` reads this file at the start of each session.
