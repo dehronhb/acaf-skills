@@ -8,8 +8,8 @@
 //     prompt box) is passed to the model too, so a real next step it names is not
 //     missing from the panel. The model decides whether it is new or a repeat of an
 //     option in other words; code can't judge that.
-//   - Each option is one button, the whole line (a mod can't make buttons bigger),
-//     and pressing it sends those words as the user's next message. If sending is
+//   - Each option's short phrase is a button; pressing it sends those words as the
+//     user's next message. If sending is
 //     refused, the words go into the prompt box instead.
 // The panel hides while Claude is working and comes back when the reply ends.
 
@@ -166,14 +166,27 @@ export function register(on) {
         : s.state === 'choose'
           ? '👉 Your turn: ' + (s.headline || 'pick what happens next')
           : '✓ ' + (s.headline || 'Nothing needed from you')
-    // The whole line is the button, for a bigger target: what you'd say, then what it does.
+    // The short phrase is the button and what it does sits beside it (the user's preference:
+    // the whole-line button was not wanted). A mod can't set a button's height, so the panel
+    // gets room instead: space between rows and padding inside, so it doesn't read as packed.
     const rows = s.options.map((o, i) =>
-      Button({ key: 'opt-' + i, label: o.does ? o.say + '  →  ' + o.does : o.say, onPress: () => sendOption($, o.say) }),
+      Box({
+        key: 'row-' + i,
+        flexDirection: 'row',
+        alignItems: 'center',
+        columnGap: 1,
+        children: [
+          Button({ key: 'opt-' + i, label: o.say, onPress: () => sendOption($, o.say) }),
+          Text({ dimColor: true, wrap: 'wrap', children: [o.does] }),
+        ],
+      }),
     )
     return Box({
       flexDirection: 'column',
       borderStyle: 'round',
       paddingX: 1,
+      paddingY: 1,
+      rowGap: 1,
       children: [Text({ bold: true, wrap: 'wrap', children: [title] }), ...rows],
     })
   })
