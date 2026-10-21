@@ -79,10 +79,12 @@ const DONE_CHECK_SYSTEM = [
   'of actions the agent took during this turn (commands and files only; you cannot see their output).',
   '',
   'Reply with JSON only: {"claim": "...", "needsCheck": true | false}',
-  '- claim: something the reply says is now fixed, working, built, done, sent or verified, including hedged',
-  '  ones ("this should fix it"). If there are several, pick the most important one the actions do not show was',
-  '  tried. At most 15 plain words. Use "" for questions, plans, explanations, reports of failure, and replies',
-  '  that say the work is changed but not yet checked.',
+  '- claim: something the agent built or changed that the reply says now works, is fixed, or was delivered (sent,',
+  '  published, deployed), including hedged ones ("this should fix it"). If there are several, pick the most',
+  '  important one the actions do not show was tried. At most 15 plain words. Use "" for: questions, plans,',
+  '  explanations, reports of failure, replies that say the work is changed but not yet checked, status reports',
+  "  about things the agent read or looked up (a review's result, a pull request's state, what a log or a balance",
+  '  shows), and saying that records, notes or docs were written.',
   '- needsCheck: true only when there is a claim AND no action shows the agent tried it the way a person meets',
   '  it: ran the app, command or script that shows the result; opened, fetched or screenshotted it; confirmed a',
   '  message arrived. Editing files, unit tests (unless the claim is about the tests), and actions marked',
@@ -93,6 +95,8 @@ const DONE_CHECK_SYSTEM = [
   '"The build passes now." / Bash npm run build -> false (the build was run)',
   '"Updated the README." / Edit README.md -> false (the edit is the result)',
   '"Sent the email." / Bash send.py (failed) -> true',
+  '"All three pull requests are clean and waiting on review." / (no actions) -> claim "" (a status report)',
+  '"Updated the handoff with where we are." / Edit handoff_summary.md -> claim "" (records written)',
 ].join('\n')
 
 // Extra instructions for the reply check when there are habits to check against.
@@ -103,6 +107,8 @@ const HABIT_CHECK_ADDITION = [
   '  A habit that does not apply to this turn is not broken. An action the list simply does not show is not a',
   '  break by itself; there must be something in the reply or actions you can point to.',
   '- "why": what in the reply or actions shows it, at most 20 words.',
+  'Only habits about the kind of work this turn did count: a habit about looking at screens does not apply to a',
+  'status report, a code review or a document.',
   'Example: listed habit "look at the result the way I will see it before handing it over" + reply "the new',
   'layout is ready for you" + no open or screenshot action -> broken. When unsure, "".',
 ].join('\n')
