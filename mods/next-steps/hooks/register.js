@@ -1,5 +1,6 @@
 // The next-steps mod. It loads in every session (ACAF projects and others, Snugit included) and
-// does two jobs at the end of each reply:
+// does five jobs: the panel and the done/habit check after each reply (1, 2), habit reminders when
+// the user sends a message (3), and the judgment-in-code and gut checks after tool calls (4, 5).
 //
 // 1. The panel: a plain-language panel above the prompt, so the user can see at a glance what
 //    Claude is waiting on.
@@ -30,7 +31,7 @@
 //    (lessons were recorded and then broken anyway). The habits come from two lists: the "## Top
 //    habits (every project)" section of ~/.claude/CLAUDE.md, and the "## Top habits" section of the
 //    project's acaf/lessons*.md file when there is one. When the user sends a message, a cheap model
-//    picks the 1 to 3 habits that fit what the agent is about to do and attaches them to the message.
+//    picks the habits (0 to 3, usually 0 or 1) that this next step could break and attaches them.
 //
 // 4. Judgment-in-code catch: agents reach for keyword lists, patterns and thresholds where a cheap
 //    model would judge meaning better, and keep patching that route. After an edit to a code file
@@ -56,56 +57,82 @@ const SUMMARY_SYSTEM = [
   'Reply with JSON only, in this shape:',
   '{"state": "choose" | "wait" | "nothing", "headline": "...", "options": [{"say": "...", "does": "..."}], "waitFor": "..."}',
   '',
-  '- "choose": the agent needs the person to decide or answer. headline: the decision, at most 12 words.',
-  '  options: 1 to 4 choices the agent offered, best first. say: the exact words to send, at most 6 words',
-  "  (use the agent's own suggested words when it gave some). does: what happens then, at most 14 words.",
+  "- \"choose\": the agent can't go on until the person decides, answers, or does something only they can (sign in,",
+  '  try it on their phone). headline: the decision or the ask, at most 12 words.',
+  '  options: only choices the agent itself offered, best first, at most 4. If it asked an open question (a name,',
+  "  a number, a preference), options: []. Never invent an answer: each option is sent as the person's own words.",
+  "  say: the exact words to send, in the person's voice, at most 6 words (use the agent's own suggested words",
+  '  when it gave some). does: what happens then, at most 14 words.',
   '- "wait": the agent says work is still running in the background (a test run, a build, a helper agent) and',
   '  it will report back, so the person should not reply yet. waitFor: what is running, at most 12 words.',
   '  options: [] unless the agent also offers something to do meanwhile.',
-  '- "nothing": the reply needs nothing from the person. headline: what was done, at most 12 words.',
-  '  options: at most 2 optional next steps the agent suggested.',
+  '- "nothing": the work is finished and needs nothing from the person. headline: what was done, at most 12',
+  '  words. options: at most 2 optional next steps the agent offered (a closing "want me to add tests?" is one).',
   '',
-  "You may also get Claude Code's own guess at what the person will type next. If it is a sensible next step",
-  'and does not mean the same as an option you already have, add it as an option with say set to its exact',
-  'words. If it means the same as one of your options, keep one option, worded the clearer way.',
+  "You may also get Claude Code's own guess at what the person will type next. Add it as an option (say set to",
+  'its exact words) only if it is a real next step for this reply that no option already means. Skip it in',
+  '"wait", when it is a pleasantry ("thanks"), or when the agent advised against it. At most 4 options in all.',
 ].join('\n')
 
 const DONE_CHECK_SYSTEM = [
   "You check an AI coding agent's final reply for claims it has not checked. You get the reply and the list",
-  'of actions the agent took during this turn.',
+  'of actions the agent took during this turn (commands and files only; you cannot see their output).',
   '',
   'Reply with JSON only: {"claim": "...", "needsCheck": true | false}',
-  '- claim: the most important thing the reply says is now fixed, working, built, done, sent or verified, in at',
-  '  most 15 plain words. Use "" when the reply makes no such claim: questions, plans, explanations, and reports',
-  '  of failures or of work not yet checked are not claims.',
-  '- needsCheck: true only when there is a claim AND none of the actions show the agent tried that thing the way',
-  '  a person would meet it: launching or running the app or the command that shows the result, opening or',
-  '  screenshotting it, reading its real output, or confirming a message arrived. Editing files, and passing',
-  '  unit tests, do not count as trying it. If the reply itself says the thing is not yet checked, use false.',
+  '- claim: something the reply says is now fixed, working, built, done, sent or verified, including hedged',
+  '  ones ("this should fix it"). If there are several, pick the most important one the actions do not show was',
+  '  tried. At most 15 plain words. Use "" for questions, plans, explanations, reports of failure, and replies',
+  '  that say the work is changed but not yet checked.',
+  '- needsCheck: true only when there is a claim AND no action shows the agent tried it the way a person meets',
+  '  it: ran the app, command or script that shows the result; opened, fetched or screenshotted it; confirmed a',
+  '  message arrived. Editing files, unit tests (unless the claim is about the tests), and actions marked',
+  '  (failed) do not count. Use false when the claim is only that text was written (a document, a note, a comment).',
+  '',
+  'Examples of where the line falls:',
+  '"Fixed the login crash." / Edit auth.js; Bash npm test -> true (the login itself was never tried)',
+  '"The build passes now." / Bash npm run build -> false (the build was run)',
+  '"Updated the README." / Edit README.md -> false (the edit is the result)',
+  '"Sent the email." / Bash send.py (failed) -> true',
 ].join('\n')
 
 // Extra instructions for the reply check when there are habits to check against.
 const HABIT_CHECK_ADDITION = [
   '',
-  'You also get the user\'s habit list. Add two fields: "brokenHabit": the exact text of one habit the reply or',
-  'the actions clearly break, or "" if none; "why": what in the reply or actions shows it, at most 20 words.',
-  'Only report a clear break you can point to (for example: handing over visual work with no look at it, or',
-  'proposing three redesigns for a one-line tweak). When unsure, use "".',
+  "You also get the user's habit list. Add two fields:",
+  '- "brokenHabit": one habit from the list, copied word for word, that the reply or actions clearly break, or "".',
+  '  A habit that does not apply to this turn is not broken. An action the list simply does not show is not a',
+  '  break by itself; there must be something in the reply or actions you can point to.',
+  '- "why": what in the reply or actions shows it, at most 20 words.',
+  'Example: listed habit "look at the result the way I will see it before handing it over" + reply "the new',
+  'layout is ready for you" + no open or screenshot action -> broken. When unsure, "".',
 ].join('\n')
 
 const HABIT_PICK_SYSTEM = [
   "You help an AI coding agent remember the user's habits at the moment they matter. You get the habit list,",
-  "the agent's last message, and the user's new message. Pick the habits most likely to matter for what the",
-  'agent will do next: at most 3, and none when nothing clearly applies.',
-  'Reply with JSON only: {"pick": [habit numbers]}',
+  "the agent's last message, and the user's new message.",
+  'Pick only habits that this specific next step could break: at most 3, usually 0 or 1. Do not pick a habit',
+  'just because it is always good advice.',
+  'Reply with JSON only: {"pick": [habit numbers]} or {"pick": []}.',
+  'Examples: "thanks, that\'s all" -> []. "make the settings screen match the mockup" -> the habit about looking',
+  'at visual work before handing it over.',
 ].join('\n')
 
 const JUDGMENT_CODE_SYSTEM = [
-  'You look at code an AI agent just wrote. Decide whether it uses code to judge meaning: whether two texts',
-  'mean the same, whether something is relevant, accurate, well written, rude, on-topic, or what kind of thing',
-  'it is, using keyword or phrase lists, patterns, similarity scores, overlap counts or thresholds. A cheap',
-  'model would judge that better. Exact checks (a field is present, a format is valid, a total, a file exists)',
-  'are fine as code, and so is code that only gathers candidates for a model to judge.',
+  'You look at code an AI agent just wrote.',
+  'Answer true only when the code decides something about the meaning of free text that people or models wrote',
+  '(whether two texts mean the same, relevance, rudeness, on-topic, which category) using word lists, regexes,',
+  'similarity or overlap scores, or a cut-off on such a score. A cheap model would judge that better.',
+  'false for: exact checks (a field is present, a date format, a total, a file exists, a file extension, an HTTP',
+  "status); limits on measured amounts (tokens, bytes, seconds); parsing structured text (JSON, CSV, a model's",
+  'tagged output); matching a fixed set of exact commands; code that only gathers candidates for a model to judge.',
+  'When unsure, false.',
+  '',
+  'Examples of where the line falls:',
+  "if (['refund', 'angry', 'cancel'].some(w => msg.includes(w))) escalate()  -> true",
+  'if (jaccard(a, b) > 0.6) markDuplicate()  -> true',
+  "/^\\d{4}-\\d{2}-\\d{2}$/.test(date)  -> false",
+  'if (tokens > 200000) warn()  -> false',
+  '',
   'Reply with JSON only: {"judgesMeaning": true | false, "why": "at most 20 words"}',
 ].join('\n')
 
@@ -356,7 +383,9 @@ async function doneCheck($, answer) {
       text =
         'Done check: your last reply says "' + claim + '", but nothing you did this turn shows you tried it ' +
         'the way the user will. Check it now: run or open the real thing and look at the result. Then tell the ' +
-        "user plainly whether it works. If it doesn't, fix it, or say it is changed but not yet checked."
+        "user plainly whether it works. If it doesn't, fix it, or say it is changed but not yet checked. If you " +
+        'already tried it earlier this session, or the reply made no such claim, say so in one line and carry on. ' +
+        "If it can only be tried on the user's own device or account, say it is changed but not checked there."
       notice = { kind: 'done', label: claim }
     } else {
       text =
@@ -407,8 +436,11 @@ async function judgmentCodeNote($, toolName, input) {
       'Judgment-in-code check: the code you just wrote in ' + file + ' looks like it uses code to judge meaning' +
       (verdict.why ? ' (' + verdict.why + ')' : '') + '. The user\'s rule is to reach for a cheap model for that ' +
       '(for example Haiku, about a tenth of a cent per call) instead of keyword lists, patterns or thresholds. ' +
-      'Tell the user that option and its cost now, before going further down this route; if a model is clearly ' +
-      'cheap and better here, switch to it and say so. If this check is mistaken, say so in one line.'
+      'Before going further down this route, tell the user the model option: which model, its rough cost per call ' +
+      'and per run, and what it does better. If the project already has a key for that model and the cost is ' +
+      'tiny, you may switch and say so; if it needs a new service, key or real spend, ask first (in an ACAF ' +
+      "project, through the direction check). If a model can't be used here (no key, no budget, a speed limit), " +
+      'say that plainly. If this check is mistaken, say so in one line and carry on.'
     )
   } catch {
     return ''
@@ -460,7 +492,7 @@ export function register(on) {
     return result
   })
 
-  // Habit reminders: attach the 1 to 3 habits that fit what the user just asked for.
+  // Habit reminders: attach the habits (0 to 3) that what the user just asked for could break.
   on('prompt.submit', async ($, e, next) => {
     const kind = e.origin && e.origin.kind
     const fromPerson =
@@ -474,7 +506,8 @@ export function register(on) {
     await debugLog($, 'habit reminder: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
     if (!picked.length) return next(e)
     const note =
-      "Habits to keep in mind for this request (from the user's lessons; act on them, don't recite them):\n" +
+      "Habits to keep in mind for this request (from the user's lessons, picked automatically: act on the ones " +
+      "that fit and skip any that don't; don't recite them):\n" +
       picked.map((h) => '- ' + h).join('\n')
     return next({ ...e, context: [...(e.context ?? []), note] })
   })
@@ -493,10 +526,12 @@ export function register(on) {
       const minutes = Math.round((now - lastPersonAt) / 60000)
       await debugLog($, 'gut check: nudged after ' + minutes + ' minutes without the user')
       notes.push(
-        'Gut check: you have worked about ' + minutes + ' minutes since the user last spoke. Is this still in ' +
-          'proportion to what they need? If one quick question about real use (how many people, how often, how ' +
-          'big) could shrink or end this work, stop and ask it now: one question, 2 to 4 multiple-choice answers, ' +
-          'and what each answer would mean for the work. If you are sure the work is in proportion, carry on.',
+        'Gut check: you have worked about ' + minutes + ' minutes since the user last spoke. Has the user told ' +
+          'you how big real use is (how many people, items, or how often)? If not, and you are handling cases ' +
+          'bigger or rarer than plain use (worst cases, scale, polish), stop and ask: one question, 2 to 4 ' +
+          'multiple-choice answers, and what each answer would mean for the work. Example: 40 minutes making ' +
+          'uploads handle 10,000 images for an app three friends use -> ask. If they already told you the size, ' +
+          'or you are working through an agreed plan at the expected pace, carry on without comment.',
       )
     }
     if (!notes.length) return result

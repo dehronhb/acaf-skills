@@ -23,11 +23,11 @@ Read `intent_brief.md`, `functional_contract.md`, `functionality_index.md`, the 
 
 - **Conflict check, early:** if the request contradicts a recorded contract criterion, surface it now as one plain question that names the request, names the conflicting criterion, and leads with your recommendation. Don't build first and argue about it in review.
 - **Degenerate check:** if the requested thing already exists (per the index and the real code), say so instead of "building" it — ask what the user actually wants changed.
-- **Novelty check:** if the records hold no proven approach for this problem, or its outcome will be judged by quality or taste, run **`acaf-explore`** (the option study) before Step 3, and plan from what it found. Planning a new problem from the first approach that comes to mind is how a low-ceiling approach gets polished for days. When the route is clear and proven, `acaf-direction`'s options are enough: don't run a study to confirm the obvious.
+- **Novelty check:** if there's no proven approach for this problem, or the main risk is that the result won't look, read or feel right and the obvious approach might top out too low (a button colour is not that), run **`acaf-explore`** (the option study) before Step 3, and plan from what it found. Planning a new problem from the first approach that comes to mind is how a low-ceiling approach gets polished for days. When the route is clear and proven, `acaf-direction`'s options are enough: don't run a study to confirm the obvious. No proven approach means neither the project's records nor a standard, well-known technique covers it. *Proven, no study:* the project's first REST endpoint in Express. *Not proven, study:* generating illustrations that match a child's drawing style.
 
 ## Step 2 — capture acceptance criteria (upfront, present tense)
 
-Write 2–6 testable, present-tense statements of what will be true when this is done (e.g. "`POST /login` returns 401 for a wrong password"). These go in the initiative file — not the contract yet. They graduate to `functional_contract.md` only when `/acaf-accept` verifies them. This is the contract-vs-as-built split: promises enter the contract only once they are real.
+Write 2–6 checkable, present-tense statements (checkable by a command, by running the app, or, for a taste outcome, against a named reference such as "matches the mock in `designs/home.png`") of what will be true when this is done (e.g. "`POST /login` returns 401 for a wrong password"). These go in the initiative file — not the contract yet. They graduate to `functional_contract.md` only when `/acaf-accept` verifies them. This is the contract-vs-as-built split: promises enter the contract only once they are real.
 
 ## Step 3 — the decision record
 
@@ -36,13 +36,13 @@ Write `acaf/decisions/<slug>.md`:
 - **Context** — the request in plain words; who it's for and what they're doing; what the records, code and outside search found already exists.
 - **Assumptions** — each fact the approach relies on, and how it was checked (read in code, found in docs, asked the user). A fact nobody checked is marked as a guess, and a guess the plan depends on is a question for the user before building.
 - **Decision** — the approach, numbered points, concrete (name real files, real libraries, real commands).
-- **Alternatives considered** — 2–3 genuinely different routes, including the best one whatever it costs, the simplest one that fully meets the need, and anything that already exists. Each gets its cost, how sure you are, and the one-line reason it lost. For a problem that went through `acaf-explore`, this section is the study: the options that were tried, with their results and costs (cite `acaf/explorations/<slug>.md`). An alternative rejected on cost, effort or UX without a trial is not an alternative considered — try it, or say exactly what blocks the trial.
+- **Alternatives considered** — 2–3 genuinely different routes, including the best one whatever it costs, the simplest one that fully meets the need, and anything that already exists. Each gets its cost, how sure you are, and the one-line reason it lost. For a problem that went through `acaf-explore`, this section is the study: the options that were tried, with their results and costs (cite `acaf/explorations/<slug>.md`). For a new problem, an alternative rejected on cost, effort or UX without a trial is not an alternative considered — try it, or say exactly what blocks the trial. For a proven route, alternatives can be argued rather than tried: say why the route is proven.
 - **Principles cross-check** — for each principle in `acaf/vision_principles.md`, one clause: served, neutral, or strained (and if strained, why it's acceptable).
 - **Checks cross-check** — list every check or judgment the approach adds or changes, and for each say which tool makes the call: **code**, only when the question has an exact answer (text present, a number matches, schema valid, items counted), or **a cheap model** under a written rule with a stated reason, for anything about meaning or context (sameness, relevance, accuracy in context, quality, classification). A heuristic that approximates meaning (overlap scores, keyword or regex lists, length cut-offs) doesn't get to make the call.
 
 ## Step 4 — the slice plan
 
-Break the work into small slices (each completable in one focused pass). For EACH slice write a definition of done:
+Break the work into small slices: each one behaviour, one commit, typically 1–5 source files ("reset-password endpoint and its test", not "auth system"). For EACH slice write a definition of done:
 
 - **Deliverables, source first:** the source files that implement the behavior come first, then test files, then records (`acaf/change_log.md`). A slice whose deliverables are only a test file or only bookkeeping is incomplete — the behavior never actually gets built. The source-first ordering is load-bearing for exactly that reason.
 - **Verification:** the project's REAL commands (from the contract's `<!-- verification -->` marker). Never invent a command the project cannot run.
@@ -54,7 +54,7 @@ Append the initiative to `acaf/initiative_manifest.md` under `## Active Initiati
 
 Apply Step 4 of `acaf-direction` to the plan as a whole. The plan is written for your own thinking, and the user rarely reads it, so what they need from this step is the choice, not the document.
 
-- **Sure and cheap** (a precise, small request with an obvious route): don't stop. Report and proceed on the user's next "continue".
+- **Sure and cheap** (a precise, small request with an obvious route): no plan questions. End the turn with the report and the cadence question (Step 6); don't start building in the planning turn.
 - **Sure but costly** (real money, hard to undo, or a change they'd notice): one line with the cost and why, then go on their yes.
 - **Not sure** (the route rests on an unchecked guess, or the user might not expect the judgment call): end with the direction check, the options with cost and confidence and your recommendation, plus any question only the user can answer. Wait.
 

@@ -15,7 +15,7 @@ Read enough to know the true state: `acaf/initiative_manifest.md` (is an initiat
 
 In this order:
 
-1. **Drift first.** If the records or git are inconsistent (uncommitted work not logged, a stale handoff), fix that before new work, and say what was off.
+1. **Drift first.** If the records or git are inconsistent (uncommitted work not logged, a stale handoff), say exactly what is off and fix what is yours. Never commit, revert or discard changes you did not make without the user's yes: they may be the user's or another agent's work in progress. *Example:* `src/auth.ts` is modified with no change-log row → report it and ask "log and commit it as part of slice 2, or leave it?" *Not:* running `git checkout .` to get a clean tree.
 1b. **A correction from the user** in the message you're answering → `acaf-lesson` before anything else, then route the corrected work from here.
 1c. **A fork in the next step** (choosing a route or a tool, spending money, changing scope, dropping an approach) → `acaf-direction` decides whether you act, test small, or ask.
 2. **A challenge with no proven approach, or an approach failing its goal / getting worse** → run the `acaf-explore` procedure (the option study: every option, its levers, a trial of each, a cost and trade-off report) — the user's choice then goes to `acaf-plan`.

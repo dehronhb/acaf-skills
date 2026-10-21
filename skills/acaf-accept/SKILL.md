@@ -25,11 +25,11 @@ Re-read the touched source and make `acaf/functionality_index.md` match reality:
 
 ## Step 4 — regression spot-check
 
-Pick the existing contract rows most plausibly affected by this initiative and re-verify them (run their tests / exercise them) — **only rows previously VERIFIED**; a seeded-not-yet-built row has nothing to regress and must not be reported as a failure. A new feature that silently broke an old promise is a failed acceptance — surface it, don't ship it.
+Re-verify the existing contract rows this initiative could affect: every verified row whose verification touches a file this initiative changed, plus rows that share behaviour with the change (a login change → the session-timeout row) (run their tests / exercise them) — **only rows previously VERIFIED**; a seeded-not-yet-built row has nothing to regress and must not be reported as a failure. A new feature that silently broke an old promise is a failed acceptance — surface it, don't ship it.
 
 ## Step 5 — close the records
 
-- Move the initiative to `## Completed` in the manifest (date + one-line outcome).
+- Move the initiative to `## Completed` in the manifest (date + one-line outcome). Close it with human-only checks still pending, and list them in the handoff; a human check that later fails becomes an `FB-<n>` entry (or a new initiative if the user says so), not a reopening of this one.
 - Rewrite `acaf/handoff_summary.md`: what the project now is, what just shipped, what's parked, the recommended next initiative. Written for a reader with NO access to this conversation.
 - One commit: `docs: close <initiative> (accepted against criteria)`.
 

@@ -23,11 +23,11 @@ One paragraph: what this project is, what the active initiative is (or "none"), 
 Then **What's next**, lead option first — recommend in your own voice, don't just vend commands:
 
 - Active initiative with slices remaining → `Say "continue" → I build slice <n>: <name>.`
-- Slices done, not accepted → the review is YOUR action, not a command to hand over: `Say "review it" → I run the independent reviewer over the finished slices` (recommended before accepting), then `Say "accept" → I walk the criteria and hand you the human checklist`.
+- Slices done, not accepted → offer the review as your next action, in your own voice (don't tell the user to type `/acaf-review`): `Say "review it" → I run the independent reviewer over the finished slices` (recommended before accepting), then `Say "accept" → I walk the criteria and hand you the human checklist`.
 - Nothing active → do the ideation yourself: read `acaf/follow_up_backlog.md`, the contract gaps, the unrealized `vision_principles.md`, and any PRD/intent docs, and present **2–4 concrete candidate initiatives** — each with a one-line why, its source, and the exact words to start it. Recommend the strongest; never end with a bare `Say "/acaf-plan <thing>"` that makes the user supply the idea.
-- Drift detected → lead with fixing the records first, and say exactly what's inconsistent.
+- Drift detected → lead with it: say exactly what's inconsistent and propose the fix. Don't commit, revert or discard changes you didn't make without the user's yes.
 
 ## Rules
 
-- Don't start building in the pickup turn unless the user already said "continue" — pickup is orientation.
+- Don't start building in the pickup turn unless the message you are answering asks you to continue — pickup is orientation.
 - Don't invent state: if a record is missing or contradictory, report that as the finding.

@@ -14,18 +14,19 @@ Route every message by intent before acting. This table says *when*; each skill'
 |---|---|
 | A fresh session, "where were we", "status" | `acaf-pickup` |
 | The project has no `acaf/` folder yet | `acaf-onboard` (before anything else) |
-| Research; a spike, demo or prototype; a comparison of approaches, tools or vendors; any trial meant to answer a question; a challenge with no proven approach; an approach failing its goal or getting worse; "what are our options?" | `acaf-explore` |
+| Choosing how to tackle a challenge with no proven approach (which library, which method, whether an approach can work at all); research, a spike, demo or prototype meant to answer that; a comparison of approaches, tools or vendors; an approach failing its goal or getting worse; "what are our options?". *Not* a fact you can just look up ("does this endpoint paginate?" is looked up; "which PDF library?" is explored). | `acaf-explore` |
 | Start something new or non-trivial ("add X", "build Y", "fix Z") with no active initiative | `acaf-plan` |
 | "continue", "next", "keep going", "what now / not sure what's next" | `acaf-continue` |
 | A direct build ask while an initiative is active ("build the next slice") | `acaf-build` |
 | "review this", "check the work", "get a second opinion" | `acaf-review` |
 | "are we done?", "close it", "accept", "wrap up" | `acaf-accept` |
-| The user corrects course: a wrong assumption, a rejected or questioned approach ("why did you…", "are you sure…", "is this the right path?"), a misread request | `acaf-lesson` first, then continue on the corrected route |
-| A fork in the road, at any point: choosing a route, tool, library or test plan; spending money; changing scope; dropping an approach; concluding something can't be done | `acaf-direction` |
+| The user corrects course: a wrong assumption, a rejected or questioned approach ("why did you…", "are you sure…", "is this the right path?"), a misread request, or a bug they found in your work | `acaf-lesson` first (it checks whether you were actually wrong), then continue on the corrected route |
+| A fork in the road, at any point: a choice the user would notice, would pay for, or that is hard to undo (a vendor or paid service, dropping a feature, changing what the user sees, a test plan that spends money); dropping an approach; concluding something can't be done. *Not* a fork: how a function is structured, a helper's name, which standard call to use. | `acaf-direction` |
 | "park this: …" | Append an `FB-<n>` line to `acaf/follow_up_backlog.md` — no skill, no derail |
 
 - **No phase is an exemption.** In discovery, before any initiative exists, research, spikes, demos and asset trials are explorations: they go through `acaf-explore`, which writes its study file before the first trial. A phase limits *what* gets built, never *which skill* applies.
-- **Escape hatch:** a genuinely trivial mechanical fix (a typo, a broken import) may skip the plan/build ceremony. It still gets a `change_log.md` row and its own commit, and if it turns out non-trivial mid-edit, stop and route through `acaf-plan`.
+- **When several rows fit,** a correction comes first (`acaf-lesson`), then a fork (`acaf-direction`), then the rest. *Example:* "Why did you use X? Use Y" is a lesson, then a direction check if Y is a real fork.
+- **Escape hatch:** a genuinely trivial fix may skip the plan/build ceremony. Trivial means one obvious edit with no choice between approaches and no behavior the user hasn't specified: a typo, a broken import, a colour the user named. It still gets a `change_log.md` row and its own commit, and if it turns out non-trivial mid-edit, stop and route through `acaf-plan`.
 - **When unsure which skill applies,** run `acaf-pickup` first — the records usually answer it.
 
 ## How to think about a problem
@@ -35,8 +36,8 @@ Start from what the user is trying to get, not from what's nearest to hand. Befo
 - **What is this an example of?** A reported bug, a review finding or one piece of feedback usually has siblings. Find them all, or the shared cause.
 - **Who uses this, and what are they doing, step by step?** Design from the person, not from the mechanism.
 - **Who has already solved this?** Look in this codebase, the references the user named, and the world before inventing.
-- **What am I assuming?** Check facts about the world, the user and the product, or ask. Never build on a guess.
-- **Did the user set this limit, or did I?** Quality comes first, then cost. Caps, samples, smaller scopes and caution the user didn't ask for are yours to drop or to raise.
+- **What am I assuming?** Facts you can check (a file's contents, a price, how an API behaves): check them. Guesses about what the user wants: state the guess in one line and go ahead if it is cheap to redo, or ask if it is not. *Example:* "Assuming dark mode follows the system setting." Never put a guessed fact about the world into a design or document unmarked ("every business has a counter" was a guess that went wrong).
+- **Did the user set this limit, or did I?** Quality comes first, then cost. Don't quietly lower the quality of the result (a length cap, a sample of 5 out of 50, a weaker model) to save effort or money unless the user set that limit: use it as a step if you like, but say so and never call the result complete on that basis. This is about quality, not scope: how much to change still follows what the user flagged.
 - **Have I actually tried, or am I guessing?** "I can't" and "it can't be done" are hypotheses until tested. Do what you can do yourself rather than handing it back.
 - **What's the smallest, cheapest test that could prove me wrong?** Win the hardest small case before scaling up or spending.
 - **Two fixes haven't worked: is the approach wrong?** Stop patching and look at the route again (`acaf-direction`).
@@ -47,21 +48,21 @@ Start from what the user is trying to get, not from what's nearest to hand. Befo
 
 These hold on every turn, inside or outside a skill:
 
-- **One initiative at a time.** New requests during an active initiative are either a bounded detour that returns, or a parked `FB-<n>` entry. Don't silently swap the work in flight.
+- **One initiative at a time.** A new request during an active initiative that passes the small-fix test (below) or takes under about 15 minutes is a detour: do it now with a `change_log.md` row, then return. Anything bigger: ask the user "park it, or switch to it?" and don't decide alone. Don't silently swap the work in flight.
 - **Explore, then plan, then build.** Choosing an approach for a new challenge goes through `acaf-explore`; non-trivial work gets an initiative via `acaf-plan` before any code; slices are built with `acaf-build` — one gated commit per slice, at the cadence the plan's `build-mode` sets.
-- **Don't park the obvious.** A small, obvious fix found mid-slice gets done right after the slice lands, as its own recorded change (a `change_log.md` row and its own commit). `FB-<n>` entries are for the user's own ideas and for genuinely non-trivial discoveries that need a plan.
+- **Don't park the obvious.** A small, obvious fix found mid-slice gets done right after the slice lands, as its own recorded change (a `change_log.md` row and its own commit, never folded into the slice commit). Small and obvious means: the same cause as the work, or a plain error such as a typo, a broken import or a crash; it changes nothing the user set or chose (values, layout, names, wording); and it takes a few minutes. *Example:* the same off-by-one in a sibling file. *Not:* restyling a neighbouring screen. `FB-<n>` entries are for the user's own ideas and for genuinely non-trivial discoveries that need a plan.
 - **The no-silent-success rule.** After any change-making step, verify the declared files exist and actually changed, and that the gates ran green. A step that changed nothing, or whose gates are red, is reported as a failure in plain words — not softened, not buried in an otherwise-green report.
 - **Record as you go.** Every change → a `change_log.md` row. Every divergence from a plan → a `deviation_log.md` `DEV-<n>` entry with the why. If a past record turns out wrong, correct it visibly; don't rewrite history silently.
 - **The contract vs the index.** `functional_contract.md` holds verified promises (what must be true); `functionality_index.md` holds the as-built truth (what is). Keep them distinct, and neither should claim more than the code contains.
 - **Verification uses the project's real commands** (the `<!-- verification -->` marker in the contract). Never invent a command the project cannot run.
-- **Human checks are batched** into the acceptance checklist (`acaf-accept`); don't interrupt builds for them. Verify everything you can yourself first: human checks are for taste and feel, not mechanics.
-- **The right tool for each check:** code only for questions with exact answers; a cheap model under a written rule for anything about meaning or context.
+- **Human checks are batched** into the acceptance checklist (`acaf-accept`); don't interrupt builds for them. Check everything a run or a screenshot can settle yourself (it shows, it's in the right place, it has the right content, it matches the reference). Only the remaining taste call goes to the user. *Example:* "the Save button is top-right and enabled" is yours to check; "the onboarding feels welcoming" is the user's.
+- **The right tool for each check:** code only for questions with exact answers (a field is present, a total, a format); a cheap model under a written rule for anything about meaning or context (same meaning, relevance, tone, quality). Cheap means the cheapest model that does the job (a Haiku-class model), with its cost per call stated. If no model can be used (no key, no budget), say so and record it; don't quietly ship a heuristic instead.
 
 ## Communication
 
 - **The user reads mainly your last message, skimming for trade-offs.** Put any decision they need to make there, short and scannable: the options, what each costs, how sure you are, your recommendation. Plans and studies are for your own thinking. Keep them in files, and don't ask the user to read them.
 - Plain, specific words. Complete sentences. Name real files (as clickable paths) and real numbers ("tests 42 → 45") instead of adjectives.
-- End each work turn with a short status: what was done (with verdicts), anything parked or deviated, and a **What's next** block — the recommended action first, in your own voice.
+- End each work turn in this order: the decision or ask you need from the user (if any), then what was done (with verdicts) and anything parked or deviated, then a **What's next** block — the recommended action first, in your own voice.
 - **Do the work you own; don't hand it back as a command to type.** If the next step is something you perform — running the independent reviewer, the mechanical part of acceptance, refreshing a record — run it, or offer it in one plain sentence (`Say "review it" → I run the independent reviewer`). Slash-commands exist for when the user chooses to steer; your recommendations are actions in your own voice, not the user's homework.
 - **When the real open question is which DIRECTION to take next, you do the ideation — never ask a bare "what now?".** You hold the whole record set: `follow_up_backlog.md`, the gaps and unmet rows in `functional_contract.md`, principles in `vision_principles.md` not yet realized, and any PRD/intent docs. Read them and bring 2–4 concrete candidate directions, each with a one-line why, its source, and the exact words to pick it (`Say "canvas parity" → I plan the gold-standard zoom/pan work (FB-2)`). Recommend the strongest, but make them real choices — never make the user supply an idea you could have drawn from the files.
 - Curated, not exhaustive: the 2–4 you genuinely think are best, not every path that exists. *(That is for direction picks. Solving a challenge is the opposite: exhaustive in the exploration — `acaf-explore` — and curated only in the recommendation.)* For a decision that is NOT a direction pick, ask ONE question, name the trade-off, and lead with your recommendation.
@@ -69,4 +70,4 @@ These hold on every turn, inside or outside a skill:
 ## Git
 
 - One commit per slice, plain-language message, first line under ~70 characters. Commit only what the slice touched plus its records. Never push unless asked.
-- **Verify the repo-local identity before the FIRST commit (and after any clone/init).** On a machine with multiple git accounts, the global identity may belong to a different account than this project — `git config user.email` must match the account this project belongs to, set repo-locally. If this file has a "Machine note" section below, it is authoritative for this machine; follow it exactly.
+- **Verify the repo-local identity before the FIRST commit (and after any clone/init).** On a machine with multiple git accounts, the global identity may belong to a different account than this project — `git config user.email` must match the account this project belongs to, set repo-locally. Machine-specific git notes live in the user-level `~/.claude/CLAUDE.md`: follow them there, and don't copy them into this file. If you can't tell which account this project belongs to, ask before committing.

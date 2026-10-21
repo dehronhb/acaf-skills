@@ -25,54 +25,65 @@ const LOOP_COMMANDS = new Set([
 
 const ROUTE_NOTE =
   'ACAF project: before acting, route this message through the routing table in CLAUDE.md and invoke the ' +
-  "matching acaf skill (don't follow a skill from memory). At a fork in the road (choosing a route or a tool, " +
-  "spending money, dropping an approach, or concluding that something can't be done) use acaf-direction."
+  "matching acaf skill (don't follow a skill from memory). If no row fits, such as a quick question or chat, " +
+  'just answer. At a fork in the road (a choice the user would notice, would pay for, or that is hard to undo; ' +
+  "dropping an approach; concluding that something can't be done) follow the acaf-direction skill, which asks " +
+  'the user through the direction tool when the choice is theirs.'
 
 const LESSON_NOTE =
-  'The user is correcting course. Before anything else, invoke acaf-lesson: say in one sentence what you ' +
-  'assumed and what is actually true, find everywhere else that assumption shaped the work, and record the ' +
-  'lesson. If the user found a bug, also work out why your own checks missed it, and add the check that ' +
-  'would catch that kind of bug before it reaches them. Then continue on the corrected route.'
+  'A quick model judged this message a correction of your direction. If it plainly is not one (a pick from ' +
+  'your options, a new task, a question), ignore this note and do what was asked. Otherwise, before anything ' +
+  'else, invoke acaf-lesson: check the work, say in one sentence what you assumed and what is actually true, ' +
+  'find everywhere else that assumption shaped the work, and record the lesson. If the user found a bug, also ' +
+  'work out why your own checks missed it: add a test or check to the project that would catch that kind of ' +
+  'bug where one fits, and record the habit in the lessons file. Then continue on the corrected route.'
 
 const REORIENT_NOTE =
-  'This conversation was just compacted or resumed. Before continuing, re-read CLAUDE.md and run ' +
-  'acaf-pickup, and resume from the acaf/ records rather than from the summary.'
+  'This conversation was just compacted or resumed. Before continuing, re-read CLAUDE.md, run acaf-pickup, ' +
+  'and take the state (what is built, what is next) from the acaf/ records. Use the summary, if there is one, ' +
+  'only for what happened after the records were last updated, and write that into the records first.'
 
 const PREPARE_NOTE =
-  'This conversation is nearing 250k tokens and will be condensed soon. At your next stopping point, ' +
-  'bring the acaf/ records up to date so nothing is lost: change_log.md rows, the manifest\'s slice ' +
-  'checkboxes, any DEV- or lesson entries, and handoff_summary.md with where you are, what the user decided ' +
-  'this session, and the exact next step.'
+  'This conversation is nearing 250k tokens and will be condensed soon. Within the next few actions (finish ' +
+  "the current step; don't start a new slice), bring the acaf/ records up to date so nothing is lost: " +
+  "change_log.md rows, the manifest's slice checkboxes, any DEV- or lesson entries, and handoff_summary.md " +
+  'with where you are, what the user decided this session, and the exact next step.'
 
 // Prompts that are never the person talking: the summary a compaction submits.
 const NOT_TYPED_PREFIXES = ['This session is being continued from a previous conversation']
 
+// The examples show where the line falls; they are not a list to match against. Judge by the rule.
 const JUDGE_SYSTEM = [
   'You help an AI coding agent notice when the person it works for is steering it back.',
   "You get the agent's last message and the person's reply.",
   '',
-  'Answer CORRECTION when the reply shows the agent was heading the wrong way because of how it thought ' +
-    'about the problem: a wrong assumption about the person, their product or the world; a misread request; ' +
-    'an approach the person rejects or questions (why did you, are you sure, is this the right path); a limit ' +
-    "or shortcut the person didn't ask for; work handed back that the agent could do itself; something built " +
-    "from scratch that already exists; something called done or impossible that isn't; one instance fixed " +
-    "where the person wanted every instance; or a bug or problem the person found in the agent's work, " +
-    'such as something that broke or behaved wrongly when they tried it.',
+  'CORRECTION: the reply shows the agent went, or is going, the wrong way: a wrong assumption; a misread ' +
+    "request; questioning or rejecting the agent's own choice or approach; a limit or shortcut nobody asked for; " +
+    'work handed back that the agent could do itself; rebuilding what already exists; calling something done or ' +
+    "impossible that isn't; fixing one case when every case was wanted; or saying that something the agent built " +
+    'or changed is broken or wrong, even when it is phrased as a request to fix it.',
+  'NOT: picking or approving an option the agent offered (even one it did not recommend); a new task; a ' +
+    'question asking for information; a requirement the agent had no way to know; a taste tweak to work that ' +
+    'went as agreed; chat.',
+  'If any part of the reply is a correction, answer CORRECTION.',
   '',
-  'Answer NOT when the reply picks, approves or goes with something the agent offered or recommended; asks ' +
-    'the agent to do a task (open, run, set up, research, plan something); asks a question, including what the ' +
-    'agent can see or do; adds a new idea or requirement the agent had no way to know; gives taste feedback on ' +
-    'work that otherwise went the agreed way; or is unrelated chat.',
+  'Examples of where the line falls:',
+  '"the save button does nothing now, fix it" -> CORRECTION (their build is broken)',
+  '"why did you add a second database? we already have one" -> CORRECTION (questions its choice)',
+  '"yes go, but no paid services, I said free only" -> CORRECTION (part of it corrects)',
+  '"no, go with B" when B was one of the options -> NOT (a pick)',
+  '"what does the sync step do?" -> NOT (asks for information)',
+  '"also add a dark mode" -> NOT (a new requirement)',
   '',
   'Reply with exactly one word: CORRECTION or NOT.',
 ].join('\n')
 
 const DIRECTION_DESCRIPTION =
-  'Show the user a direction check and wait for their choice. Use it before an unsure, costly move: spending ' +
-  "real money on something not yet proven, a change that is hard to undo, or a change of direction the user " +
-  "would notice in the product. Also use it before dropping an approach or concluding that something can't " +
-  "be done. Don't use it for cheap choices or ones you are sure of: make those yourself and say what you did. " +
-  "Returns the user's choice."
+  "Show the user a direction check and wait for their choice. Use it when a move is costly (more than about $1 " +
+  "they haven't approved, hard to undo, or a change they would notice in the product) and you are not sure it is " +
+  "right, and always before dropping an approach or concluding that something can't be done, even when sure. " +
+  "When a move is cheap or easy to undo, decide yourself and say what you did. Paying $40 for an untested " +
+  "service -> use it. Choosing between two free, swappable libraries -> don't. Returns the user's choice."
 
 const DIRECTION_SCHEMA = {
   type: 'object',
@@ -94,7 +105,7 @@ const DIRECTION_SCHEMA = {
         required: ['label', 'gets', 'givesUp', 'cost', 'confidence'],
       },
     },
-    recommendation: { type: 'string', description: 'The label of the option you recommend.' },
+    recommendation: { type: 'string', description: "Exactly one option's label, copied character for character." },
     why: { type: 'string', description: 'Why you recommend it, in one sentence.' },
   },
   required: ['problem', 'options', 'recommendation', 'why'],
