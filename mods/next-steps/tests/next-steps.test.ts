@@ -187,7 +187,7 @@ function stubDoneCheck(on, verdict: object, calls: { done: number }) {
   on('fs.exists', () => ({ value: false }))
   on('fs.write', () => ({ value: undefined }))
   on('model.complete', ($, e) => {
-    if (e.system.includes('claims it has not checked')) {
+    if (e.system.includes('never tried')) {
       calls.done += 1
       return { value: { isAnswered: true, text: JSON.stringify(verdict), usage: USAGE } }
     }
@@ -324,7 +324,7 @@ test('a clearly broken habit sends the agent back once', async ($, on) => {
     return { text: e.text }
   })
   on('model.complete', ($, e) => {
-    const text = e.system.includes('claims it has not checked')
+    const text = e.system.includes('never tried')
       ? JSON.stringify({ claim: '', needsCheck: false, brokenHabit: 'Look at the result the way I will see it before handing it over.', why: 'handed over build 7 with no pictures' })
       : JSON.stringify({ state: 'nothing', headline: 'Build 7 ready.', options: [] })
     return { value: { isAnswered: true, text, usage: USAGE } }
@@ -412,34 +412,41 @@ test("the user's own messages, and the expanded view, are left as Claude Code dr
   expect(await expanded.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
 })
 
-test('the next-step box is sent back once when the agent wrote nothing in the chat', async ($, on) => {
+test('the next-step box is turned off: every call is refused with a pointer to the chat', async ($, on) => {
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('tool.call', () => ({ result: [{ type: 'text', text: 'Shown in the next-step box.' }] }))
+
+  const out = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Click Create new policy.' })
+  expect(out.deny).toContain('turned off by the user')
+  expect(out.deny).toContain('Write your whole reply in the chat')
+})
+
+test("the next-step box's description says it is turned off", async ($, on) => {
+  on('tool.describe', ($, e) => ({ description: e.description }))
+  const out = await $.tool.describe({ tool: 'mcp__ccd_turn__wrap_up', description: 'Show a next-step box.', provider: { plugin: 'engine', tier: 'core' } })
+  expect(out.description).toContain("Turned off by the user. Don't call this tool.")
+})
+
+test('the reply check sees actions from earlier turns, marked as such', async ($, on) => {
+  const clock = mock.clock(on)
+  const prompts: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
   on('fs.exists', () => ({ value: false }))
   on('fs.write', () => ({ value: undefined }))
   on('session.messages', () => ({ value: [
-    { role: 'user', text: 'For the love of Christ, will you please explain to me what to do?', toolUses: [] },
-    { role: 'assistant', text: '', toolUses: [] },
+    { role: 'user', text: 'Fix the back button.', toolUses: [] },
+    { role: 'assistant', text: '', toolUses: [{ tool_use_id: 'a', tool: 'Bash', input: { command: 'flutter build windows' } }] },
+    { role: 'user', text: 'Looks good to me.', toolUses: [] },
+    { role: 'assistant', text: 'The back button now works.', toolUses: [] },
   ] }))
-  on('tool.call', () => ({ result: [{ type: 'text', text: 'Shown in the next-step box.' }] }))
+  on('model.complete', ($, e) => {
+    if (e.system.includes('never tried')) prompts.push(e.prompt)
+    return { value: { isAnswered: true, text: JSON.stringify({ claim: 'the back button works', needsCheck: false, state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
+  })
 
-  const first = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Click Create new policy.' })
-  expect(first.deny).toContain('write your reply to the user in the chat')
-  const second = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Click Create new policy.' })
-  expect(second.deny).toBeUndefined()
-})
-
-test('the next-step box goes through when the agent already wrote its reply', async ($, on) => {
-  on('session.messages', () => ({ value: [
-    { role: 'user', text: 'What do I do on this page?', toolUses: [] },
-    { role: 'assistant', text: '1. Click Create new policy. 2. Choose Emails. 3. Type your address.', toolUses: [] },
-  ] }))
-  on('tool.call', () => ({ result: [{ type: 'text', text: 'Shown in the next-step box.' }] }))
-
-  const out = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Steps above.' })
-  expect(out.deny).toBeUndefined()
-})
-
-test("the next-step box's description says the chat reply comes first", async ($, on) => {
-  on('tool.describe', ($, e) => ({ description: e.description }))
-  const out = await $.tool.describe({ tool: 'mcp__ccd_turn__wrap_up', description: 'Show a next-step box.', provider: { plugin: 'engine', tier: 'core' } })
-  expect(out.description).toContain('Write your reply in the chat before calling this')
+  await finishTurn($, clock, 'The back button now works.')
+  expect(prompts[0]).toContain('(earlier turn) Bash: flutter build windows')
 })

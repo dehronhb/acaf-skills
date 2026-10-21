@@ -49,6 +49,10 @@
 // next-prompt guess, which is written just after the reply, can be included.
 const SUGGESTION_WAIT_MS = 2500
 
+// How many of the user's recent turns the reply check looks back over, so a claim tried a turn or two ago
+// counts as tried.
+const RECENT_TURNS = 4
+
 const SUMMARY_SYSTEM = [
   "You summarize the end of an AI coding agent's reply for a busy person who only skims.",
   'Say what the person can do next, in plain words a smart 10-year-old would follow. No jargon, no file',
@@ -75,29 +79,29 @@ const SUMMARY_SYSTEM = [
 ].join('\n')
 
 const DONE_CHECK_SYSTEM = [
-  "You check an AI coding agent's final reply for claims it has not checked. You get the reply and the list",
-  'of actions the agent took during this turn (commands and files only; you cannot see their output).',
+  "You check an AI coding agent's final reply for a claim the person may act on that the agent never tried.",
+  "You get the reply and the agent's recent actions, each marked (this turn) or (earlier turn); commands and files",
+  'only, you cannot see their output. The person skims: a wrong "it works" leads them to test, ship, decide or tell',
+  'someone on a false basis. That is the only thing this check is for; it should stay quiet otherwise.',
   '',
   'Reply with JSON only: {"claim": "...", "needsCheck": true | false}',
-  '- claim: something the agent built or changed that the reply says now works, is fixed, or was delivered (sent,',
-  '  published, deployed), including hedged ones ("this should fix it"). If there are several, pick the most',
-  '  important one the actions do not show was tried. At most 15 plain words. Use "" for: questions, plans,',
-  '  explanations, reports of failure, replies that say the work is changed but not yet checked, status reports',
-  "  about things the agent read or looked up (a review's result, a pull request's state, what a log or a balance",
-  '  shows), saying that records, notes or docs were written, and instructions or expectations for the person',
-  '  ("when you paste the key you should see Success").',
-  '- needsCheck: true only when there is a claim AND no action shows the agent tried it the way a person meets',
-  '  it: ran the app, command or script that shows the result; opened, fetched or screenshotted it; confirmed a',
-  '  message arrived. Editing files, unit tests (unless the claim is about the tests), and actions marked',
-  '  (failed) do not count. Use false when the claim is only that text was written (a document, a note, a comment).',
+  '- claim: something the agent itself built, changed or worked out in this session that the reply says now works,',
+  '  is fixed, is correct, or was delivered (sent, published, deployed), including hedged ones ("this should fix it").',
+  '  At most 15 plain words. Use "" for: questions, plans, explanations; reports of failure; "changed, not yet',
+  "  checked\"; facts relayed from another agent, a tool or a review; status reports (a pull request's state, what a",
+  '  log shows); records, notes or docs written; and instructions to the person.',
+  '- needsCheck: true only when ALL three hold: (1) there is a claim; (2) no action in this turn or the earlier turns',
+  '  shows the agent tried it the way a person meets it (ran the app, command or script that shows it; opened,',
+  '  fetched or screenshotted it; confirmed a message arrived; computed the number); editing files, unit tests',
+  '  (unless the claim is about the tests) and actions marked (failed) do not count; and (3) being wrong would',
+  '  mislead the person or waste their time. A renamed variable or a tidied comment fails (3).',
   '',
   'Examples of where the line falls:',
-  '"Fixed the login crash." / Edit auth.js; Bash npm test -> true (the login itself was never tried)',
-  '"The build passes now." / Bash npm run build -> false (the build was run)',
-  '"Updated the README." / Edit README.md -> false (the edit is the result)',
-  '"Sent the email." / Bash send.py (failed) -> true',
-  '"All three pull requests are clean and waiting on review." / (no actions) -> claim "" (a status report)',
-  '"Updated the handoff with where we are." / Edit handoff_summary.md -> claim "" (records written)',
+  '"Fixed the login crash." / (this turn) Edit auth.js; Bash npm test -> true',
+  '"The back button now works." / (earlier turn) Bash build; screenshot of the screen -> false (tried earlier)',
+  '"Three heavy users would hit the $10 limit." / no calculation or lookup -> true (they will decide on it)',
+  '"The other session checked it: links open without sign-in." -> claim "" (relayed)',
+  '"Renamed the helper for clarity." / Edit utils.js -> false (nothing hinges on it)',
 ].join('\n')
 
 // Extra instructions for the reply check when there are habits to check against.
@@ -161,8 +165,6 @@ let doneNotice = null
 let replyAnswersCheck = false
 // Code files the judgment-in-code catch has already spoken about this session.
 const judgedFiles = new Set()
-// Whether the next-step box reminder was already given this turn (at most once per turn, so it can't loop).
-let wrapUpReminded = false
 // The gut check: when the user last spoke (ms, 0 = not yet seen) and when the agent was last nudged.
 let lastPersonAt = 0
 let lastNudgeAt = 0
@@ -313,23 +315,23 @@ async function runningAgents($) {
 // input that says what it did (a command, a file, a URL).
 async function turnActions($) {
   const messages = await $.session.messages()
-  let start = 0
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m.role === 'user' && m.text && m.text.trim() && !(m.toolResults && m.toolResults.length)) {
-      start = i + 1
-      break
-    }
-  }
+  // Index of each message the person typed (not tool results), newest last.
+  const prompts = []
+  messages.forEach((m, i) => {
+    if (m.role === 'user' && m.text && m.text.trim() && !(m.toolResults && m.toolResults.length)) prompts.push(i)
+  })
+  const thisTurn = prompts.length ? prompts[prompts.length - 1] + 1 : 0
+  const from = prompts.length >= RECENT_TURNS ? prompts[prompts.length - RECENT_TURNS] + 1 : 0
   const lines = []
-  for (const m of messages.slice(start)) {
+  messages.slice(from).forEach((m, k) => {
+    const when = from + k >= thisTurn ? 'this turn' : 'earlier turn'
     for (const t of m.toolUses || []) {
       const input = t.input || {}
       const what = input.command || input.file_path || input.url || input.action || input.description || JSON.stringify(input)
-      lines.push('- ' + t.tool + ': ' + String(what).replace(/\s+/g, ' ').slice(0, 160) + (t.isError ? ' (failed)' : ''))
+      lines.push('- (' + when + ') ' + t.tool + ': ' + String(what).replace(/\s+/g, ' ').slice(0, 160) + (t.isError ? ' (failed)' : ''))
     }
-  }
-  return lines.slice(-40)
+  })
+  return lines.slice(-60)
 }
 
 // Writes the panel summary for a finished reply, then redraws the panel. Never throws.
@@ -482,7 +484,6 @@ async function sendOption($, text) {
 export function register(on) {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) {
-      wrapUpReminded = false
       summary = null
       suggestion = ''
       if (doneNotice && !doneNotice.isSent) doneNotice = null
@@ -568,48 +569,26 @@ export function register(on) {
     return next(e)
   })
 
-  // The Desktop app's next-step box (its wrap-up tool) tells the agent to write nothing after calling it. Agents
-  // read that as "write nothing at all" and give the user a one-line recap in place of the explanation; in one
-  // session the user, mid-way through a website setup, got seven one-line recaps in a row and had to plead for
-  // instructions. So: the tool's description says the chat reply comes first, and a call made before the agent
-  // has written anything this turn is sent back once with that reminder. (Presence of text is an exact check;
-  // whether the text is good enough is left to the agent.)
+  // The Desktop app's next-step box (its wrap-up tool) is turned off, by the user's choice (2026-10-21).
+  // Agents treated the box as their real reply and the chat as optional: one-line recaps instead of the steps
+  // the user needed, even after a once-per-turn reminder to write in the chat first. The panel this mod draws
+  // already shows the next options as buttons, so nothing is lost. Undo: delete these two hooks.
   on('tool.describe', { tool: 'mcp__ccd_turn__wrap_up' }, async ($, e, next) =>
     next({
       ...e,
       description:
-        e.description +
-        '\n\nWrite your reply in the chat before calling this: any explanation, instructions or steps the user ' +
-        'needs, in full. The recap is a one-line summary of that reply, not a replacement for it. When the user is ' +
-        'doing something by hand (a website, a dashboard, a settings screen), give numbered steps in the chat, one ' +
-        'action per step, naming the exact button or field.',
+        "Turned off by the user. Don't call this tool. Write your whole reply in the chat, ending with what you " +
+        'need from the user, if anything; a panel above the prompt shows them their next options.',
     }),
   )
 
-  on('tool.call', { tool: 'mcp__ccd_turn__wrap_up' }, async ($, e, next) => {
-    if (wrapUpReminded) return next(e)
-    try {
-      const messages = await $.session.messages()
-      let start = 0
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i]
-        if (m.role === 'user' && m.text && m.text.trim() && !(m.toolResults && m.toolResults.length)) {
-          start = i + 1
-          break
-        }
-      }
-      const wrote = messages.slice(start).some((m) => m.role === 'assistant' && m.text && m.text.trim().length > 0)
-      if (wrote) return next(e)
-    } catch {
-      return next(e)
-    }
-    wrapUpReminded = true
-    await debugLog($, 'wrap-up box: sent back once (no chat reply written this turn)')
+  on('tool.call', { tool: 'mcp__ccd_turn__wrap_up' }, async ($, e) => {
+    await debugLog($, 'next-step box: refused (turned off by the user)')
     return {
       deny:
-        'Before using the next-step box, write your reply to the user in the chat: the explanation, instructions or ' +
-        'numbered steps they need, in full and in plain words. The box only summarizes that reply. Then call the ' +
-        'box again.',
+        'The next-step box is turned off by the user. Write your whole reply in the chat instead: the explanation, ' +
+        'instructions or numbered steps they need, in full and in plain words, ending with any question for them. ' +
+        'The panel above the prompt shows their next options; you do not need the box.',
     }
   })
 
