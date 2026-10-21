@@ -11,10 +11,11 @@ The user owns direction, taste and spend. You own the mechanics, and the thinkin
 
 ## How much of this to do
 
-Scale the check to the fork. Look at the Step 4 table first:
+Scale the check to the fork. Make a quick first call with the Step 4 table:
 
 - **Cheap and sure** (most small choices): decide in your head and mention it in one line in your final message. No write-up. *Example:* reusing the project's existing date helper instead of writing a new one.
-- **Costly, or you're not sure:** run Steps 1 to 6, one line per bullet, and skip any bullet that's obvious for this fork. *Example:* switching the speech-to-text vendor; a study that would cost $8 in API calls; dropping a feature the user asked for.
+- **Cheap but not sure:** run the smallest test that could prove you wrong (the table's cell), then decide. No write-up.
+- **Costly:** run Steps 1 to 6, one line per bullet, skipping any bullet that's obvious for this fork. If you're sure, Step 5 is just the one-line cost and reason; if you're not, it's the full options. *Example:* switching the speech-to-text vendor; a study that would cost $8 in API calls; dropping a feature the user asked for.
 
 ## Step 1 — understand the problem in the user's terms
 
@@ -54,7 +55,7 @@ For each option: what it gets the user, what it gives up, what it costs (money n
 - **hard to undo:** something git or a settings change can't reverse, such as deleting data, sending a message to someone, publishing, or merging;
 - **a change the user would notice in the product:** what it does or how it feels to use, such as dropping a feature, swapping the transcription engine, or changing a screen's layout.
 
-It doesn't mean big. Renaming internals, or refactoring 20 files behind passing tests, is a big change that is cheap.
+It doesn't mean big. Renaming internals, or refactoring 20 files behind passing tests, is a big change that is cheap. And it's about choices you would make on your own: a change the user asked for, or an idea they described and you said back, already has their yes.
 
 **Sure** means you've checked it works (or it's a known, proven pattern here) and no option from Step 3 beats it on what the user judges by. Anything less is **not sure**.
 
@@ -67,7 +68,7 @@ Before concluding "I can't" or "it can't be done", make at least one real attemp
 
 ## Step 5 — when you stop, make the choice easy to scan
 
-The user skims and reads mainly your last message. If the `direction` tool is available (from the ACAF mod), call it with the problem, the options (for each: a short label, what the user gets, what they give up, the cost, and how sure you are), your recommendation and why. It shows the user a card with each option's trade-offs as bullets, and returns their choice. Otherwise end your message with the same thing, short:
+The user skims and reads mainly your last message, so the choice goes at the top of it (after any one- or two-line lesson note from `acaf-lesson`). If the `direction` tool is available (from the ACAF mod), call it with the problem, the options (for each: a short label, what the user gets, what they give up, the cost, and how sure you are), your recommendation and why. It shows the user a card with each option's trade-offs as bullets, and returns their choice. Otherwise put the same thing at the top of your final message, short:
 
 - The problem, in one line.
 - Each option: what it gets you, what you give up, what it costs, how sure you are.

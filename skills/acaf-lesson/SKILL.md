@@ -13,7 +13,7 @@ Check the work before you agree with the question. Then:
 
 - **An assumption of yours was wrong** → a lesson. *Examples:* you built the walk from navigation when AAMS's own animations existed; you said "fixed" without trying it; you capped summaries at 6,000 words when the user never asked for a cap; the user hit a bug your checks should have caught.
 - **You were right** → say why in one or two plain lines, with the evidence, and record nothing. Don't rewrite correct work to please the question.
-- **Not a lesson:** the user changing their mind ("actually, make it blue"), or giving facts you had no way to know. Just do it.
+- **Not a lesson:** the user changing their mind ("actually, make it blue"), or a fact you couldn't have looked up or reasonably asked about, such as a new preference. Just do it. *But:* a fact you guessed and the user corrected is a lesson (trap 6), because you could have checked or asked.
 
 ## Step 1 — name the wrong assumption
 
@@ -47,8 +47,8 @@ A bug the user hits is two mistakes: the one that made the bug, and the gap in y
 
 Search the work for the same assumption: other files with the same bug, other screens with the same pattern, other plans or records built on the same belief, earlier decisions that rest on it. List what you find.
 
-- **Fix it now** only if it's the same fix, in the area the current task already touches, and easy to undo. *Example:* the same off-by-one in three sibling files of the feature you're working on.
-- **List it instead** when it's in a different area, needs a design change, or means rewriting a record. Those go through `acaf-direction` (and into the plan, or an `FB-<n>` entry).
+- **Fix it now** only if it passes the user's small-fix test (in `~/.claude/CLAUDE.md`: the same cause or a plain error, changes nothing the user set or chose, takes a few minutes) and sits in the area the current task already touches. *Example:* the same off-by-one in three sibling files of the feature you're working on.
+- **List it instead** when it's in a different area, needs a design change, or means rewriting a record. Those go through `acaf-direction` (and into the plan, or an `FB-<n>` entry in `acaf/follow_up_backlog.md`).
 
 ## Step 3 — correct the route
 
@@ -74,7 +74,7 @@ Write the habit at the right height:
 
 Mark **kit** when the habit would help on any project; those get folded into the user's every-project habits or the ACAF kit later.
 
-**Then update the file's `## Top habits` list**, at the very top under the title, even if the file never had one. It holds at most 10 one-line habits: the ones that would most change how an agent works on this project's next tasks. Don't repeat a habit that's already in the user's every-project list (`~/.claude/CLAUDE.md`, "Top habits (every project)"); a mod reads both lists together. Fold the new lesson in by merging it into a habit it repeats, or by replacing the weakest one. The weakest one is the habit least likely to change what an agent does on this project's next tasks. Only its Top-habits line goes; its full entry stays.
+**Then update the file's `## Top habits` list**, at the very top under the title, even if the file never had one. It holds at most 10 one-line habits: the ones that would most change how an agent works on this project's next tasks. Don't repeat a habit that's already in the user's every-project list (`~/.claude/CLAUDE.md`, "Top habits (every project)"); a mod reads both lists together. If the lesson isn't already covered: add it as a new line while the list has fewer than 10; at 10, merge it into a habit it repeats or replace the weakest one. The weakest one is the habit least likely to change what an agent does on this project's next tasks. Only its Top-habits line goes; its full entry stays.
 
 Why the list exists: a long lessons file gets recorded but not absorbed. In one project a 700-line file sat beside the same struggles repeating. The list is what every session reads and a mod reminds agents of; the full entries below it are the evidence, and project facts to look up when doing that kind of work.
 
@@ -82,4 +82,4 @@ Lessons go in the project's records, not private memory, so every future session
 
 ## Step 5 — tell the user, briefly
 
-One or two lines at the start of your reply: what you'd assumed, what you've changed, and where else it applied. Then get on with the corrected work.
+One or two lines at the very start of your reply: what you'd assumed, what you've changed, and where else it applied. Any decision you need from the user comes right after those lines. Then get on with the corrected work.
