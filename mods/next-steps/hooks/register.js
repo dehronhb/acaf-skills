@@ -401,6 +401,13 @@ async function doneCheck($, answer) {
         'Put it right now. If this check is mistaken, say so in one line and carry on.'
       notice = { kind: 'habit', label: broken }
     }
+    // Frame the message so the agent can't take it for the user's words, and so its reply tells the user what
+    // happened in one line (the user skims and didn't write this).
+    const label = needsCheck ? 'done check' : 'habit check'
+    text =
+      '[Automatic ' + label + ' from the next-steps mod. This message is NOT from the user, who did not write or ' +
+      'see it.]\n\n' + text + '\n\nIn your reply to the user, start with one line naming this: "The automatic ' +
+      label + ' asked me to …", then what you found or changed.'
     lastAnswer = '' // the summary for this reply is now out of date: the agent is about to act on the check
     summary = null
     replyAnswersCheck = true

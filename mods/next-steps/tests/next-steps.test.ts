@@ -212,6 +212,8 @@ test('an untested "fixed" claim sends the agent back to check, and the panel say
   expect(calls.done).toBe(1)
   expect(sent.length).toBe(1)
   expect(sent[0]).toContain('the login bug is fixed')
+  expect(sent[0]).toContain('NOT from the user')
+  expect(sent[0]).toContain('The automatic done check asked me to')
   const ui = await $.ui.mount(BAND('desktop'))
   expect(await ui.find({ type: 'Text', text: /Checking: the agent said "the login bug is fixed"/ })).toBeDefined()
 })
