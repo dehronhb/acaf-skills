@@ -384,3 +384,28 @@ test('after 30 minutes without the user, the agent is asked once to gut-check pr
   const right_after = await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: { command: 'npm test' } })
   expect(right_after.additionalContext).toBeUndefined()
 })
+
+const ROW = (text: string, origin: object, isExpanded = false) => ({
+  plugin: 'next-steps',
+  component: 'UserMessage',
+  requestId: 'm1',
+  surface: 'desktop',
+  viewport: { columns: 100, rows: 30 },
+  props: { text, origin, isExpanded },
+}) as const
+
+test("the mod's own check messages are drawn as one short grey line", async ($, on) => {
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
+  const msg = 'The next-steps plugin sent a message: Done check: your last reply says "The Back button now works.", but nothing you did...'
+  const ui = await $.ui.mount(ROW(msg, { kind: 'plugin', name: 'next-steps' }))
+  expect(await ui.find({ type: 'Text', text: /Done check \(automatic\): asked the agent to try "The Back button now works\."/ })).toBeDefined()
+})
+
+test("the user's own messages, and the expanded view, are left as Claude Code draws them", async ($, on) => {
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
+  const mine = await $.ui.mount(ROW('Done check: is this right?', { kind: 'composer' }))
+  expect(await mine.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+  await mine.unmount()
+  const expanded = await $.ui.mount(ROW('Done check: your last reply says "X"', { kind: 'plugin', name: 'next-steps' }, true))
+  expect(await expanded.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+})

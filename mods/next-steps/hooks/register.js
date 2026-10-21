@@ -84,7 +84,8 @@ const DONE_CHECK_SYSTEM = [
   '  important one the actions do not show was tried. At most 15 plain words. Use "" for: questions, plans,',
   '  explanations, reports of failure, replies that say the work is changed but not yet checked, status reports',
   "  about things the agent read or looked up (a review's result, a pull request's state, what a log or a balance",
-  '  shows), and saying that records, notes or docs were written.',
+  '  shows), saying that records, notes or docs were written, and instructions or expectations for the person',
+  '  ("when you paste the key you should see Success").',
   '- needsCheck: true only when there is a claim AND no action shows the agent tried it the way a person meets',
   '  it: ran the app, command or script that shows the result; opened, fetched or screenshotted it; confirmed a',
   '  message arrived. Editing files, unit tests (unless the claim is about the tests), and actions marked',
@@ -555,6 +556,23 @@ export function register(on) {
       }
     }
     return next(e)
+  })
+
+  // The done and habit checks reach the agent as a prompt this mod submits, which Claude Code shows as a
+  // message in the user's place. Draw it as one short grey line instead, so it isn't mistaken for something
+  // the user typed. The full text still shows in the expanded transcript view (ctrl+o).
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    const p = e.props || {}
+    const o = p.origin || {}
+    const text = String(p.text || '')
+    const ours = (o.kind === 'plugin' && o.name === 'next-steps') || /next-steps plugin sent a message/.test(text)
+    if (!ours || p.isExpanded || !/(Done check|Habit check):/.test(text)) return next(e)
+    const { Text } = $.ui.resolve(e)
+    const quoted = (text.match(/"([^"]{3,200})"/) || [])[1] || ''
+    const line = /Habit check:/.test(text)
+      ? '🔎 Habit check (automatic): asked the agent to put right a slip against your habit "' + quoted + '".'
+      : '🔎 Done check (automatic): asked the agent to try "' + quoted + '" for real before you rely on it.'
+    return Text({ dimColor: true, wrap: 'wrap', children: [line] })
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

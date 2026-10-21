@@ -74,6 +74,10 @@ const JUDGE_SYSTEM = [
   '"no, go with B" when B was one of the options -> NOT (a pick)',
   '"what does the sync step do?" -> NOT (asks for information)',
   '"also add a dark mode" -> NOT (a new requirement)',
+  '"it\'s asking if it should be saved. should I?" -> NOT (a question)',
+  '"oh, do you mean this panel on the right?" -> NOT (checking what the agent meant)',
+  '"never mind, raise it to 100" -> NOT (a change of mind)',
+  '"what is taking so long? why are you struggling with that small thing?" -> CORRECTION (the approach is off)',
   '',
   'Reply with exactly one word: CORRECTION or NOT.',
 ].join('\n')
