@@ -312,6 +312,27 @@ test('a message gets the habits that fit it, from both lists', async ($, on) => 
   expect(seen[0].context[0]).toContain('- Run every click through the real mouse.')
 })
 
+test('a request for something the user will see, with choices open, tells the agent to ask first', async ($, on) => {
+  const seen = []
+  let answer = '{"pick": [], "askFirst": true}'
+  stubHabitFiles(on)
+  on('session.messages', () => ({ value: [{ role: 'assistant', text: 'The DM page is live.', toolUses: [] }] }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: answer, usage: USAGE } }))
+  on('prompt.submit', ($, e) => {
+    seen.push(e)
+    return { text: e.text }
+  })
+
+  await $.prompt.submit({ text: 'I need a way to test the survey as each player.', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context.length).toBe(1)
+  expect(seen[0].context[0]).toContain('Ask first (from the next-steps mod, not the user)')
+  expect(seen[0].context[0]).toContain('acaf-grill')
+
+  answer = '{"pick": [], "askFirst": false}'
+  await $.prompt.submit({ text: '1a, 2b', wait: false, origin: { kind: 'composer' } })
+  expect(seen[1].context ?? []).toEqual([])
+})
+
 test('a clearly broken habit sends the agent back once', async ($, on) => {
   const clock = mock.clock(on)
   const sent: string[] = []

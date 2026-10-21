@@ -16,7 +16,7 @@ Planning is a deliverable, not a preamble. The output is files, so any future se
 
 Read `intent_brief.md`, `functional_contract.md`, `functionality_index.md`, the lessons file (`lessons*.md`, if present), and the relevant source files. Then do Steps 1–2 of `acaf-direction` before choosing anything:
 
-- **The person and their steps:** who uses this, and what they do, step by step. For anything with a user experience, map the flows they'll go through (including the messy ones) before designing a screen or a pipeline.
+- **The person and their steps:** who uses this, and what they do, step by step. For anything with a user experience, map the flows they'll go through (including the messy ones) before designing a screen or a pipeline. Where the request leaves choices about that experience open (where they start, what they click, who signs in, how the user will try it), ask the user with `acaf-grill` before planning around your guess.
 - **What "good" means to the user,** in their terms.
 - **Your assumptions,** facts separated from decisions. Check each fact you can; list the ones only the user can answer.
 - **What already exists:** in this codebase, in the references the user named, and in the world.

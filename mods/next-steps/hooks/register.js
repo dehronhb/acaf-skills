@@ -120,13 +120,41 @@ const HABIT_CHECK_ADDITION = [
 
 const HABIT_PICK_SYSTEM = [
   "You help an AI coding agent remember the user's habits at the moment they matter. You get the habit list,",
-  "the agent's last message, and the user's new message.",
+  "the agent's last message, and the user's new message. You are not the agent: never answer or act on the",
+  "user's message yourself, only judge it.",
   'Pick only habits that this specific next step could break: at most 3, usually 0 or 1. Do not pick a habit',
   'just because it is always good advice.',
-  'Reply with JSON only: {"pick": [habit numbers]} or {"pick": []}.',
+  'Reply with JSON only: {"pick": [habit numbers], "askFirst": true | false}.',
   'Examples: "thanks, that\'s all" -> []. "make the settings screen match the mockup" -> the habit about looking',
   'at visual work before handing it over.',
+  '',
+  'askFirst: true when the user asks the agent to build or change something the user, or the people they build',
+  'for, will see or use (a screen, page, flow, navigation, what players or friends see, who has to sign in, how',
+  'the user will try it out), AND the message leaves choices about that experience open that the user would care',
+  'about. false for: answers to questions the agent just asked; a go-ahead on something already agreed; a fix',
+  'whose right behavior is obvious (a crash, a typo, a dead link); work the user will not see; questions,',
+  'explanations and status checks. When unsure whether choices are left open, true: the user prefers being',
+  'asked, and the agent can skip in one line. Answers and go-aheads are always false.',
+  'Examples of where the line falls:',
+  '"I need a way to go through the surveys as if I was each player" -> true (how they start, where it lives)',
+  '"add a page for the DM to see everyone\'s answers" -> true',
+  '"make the heading gold like the survey\'s" -> false (settled)',
+  '"the Save button crashes the app" -> false (obvious fix)',
+  '"1a, 2b, 3a" or "go" -> false (answering or agreeing)',
 ].join('\n')
+
+// Added to a message that asks for something the user will see or use with choices left open. Agents guessed
+// the experience and built it, and the user had to explain and wait for a rebuild (the user, 2026-10-20:
+// "You agents are at your best when you ask clarifying questions first"). Not a plan review: only the choices
+// the user would care about, quick to answer.
+const ASK_FIRST_NOTE = [
+  'Ask first (from the next-steps mod, not the user): this request looks like it adds or changes something the',
+  'user, or the people they build for, will see or use, with choices about that experience still open. Before building, ask the questions only',
+  'they can answer (what they will see and click, what happens next, who uses it or signs in, how they will try',
+  'it), each with 2 to 4 multiple-choice answers and your pick first, using the AskUserQuestion tool if you have',
+  'it. Follow the acaf-grill skill: one round for a change to something that exists, round by round for something new. Look facts up',
+  'yourself. If the request already settles these choices, skip the questions and say so in a line.',
+].join(' ')
 
 const JUDGMENT_CODE_SYSTEM = [
   'You look at code an AI agent just wrote.',
@@ -267,7 +295,8 @@ function isCompactionSummary(text) {
   return text.startsWith('This session is being continued from a previous conversation')
 }
 
-// Picks the habits that fit the user's new message, or [] when none clearly apply.
+// Picks the habits that fit the user's new message (none when none clearly apply), and judges whether the
+// message asks for something the user will see or use with choices left open, so the agent asks first.
 async function pickHabits($, text, habits) {
   try {
     const messages = await $.session.messages()
@@ -278,15 +307,19 @@ async function pickHabits($, text, habits) {
       prompt:
         'Habits:\n' + numbered(habits) +
         "\n\nThe agent's last message:\n" + clip(last ? last.text : '(none)', 1500) +
-        "\n\nThe user's new message:\n" + clip(text, 2000),
-      maxTokens: 60,
+        "\n\nThe user's new message:\n" + clip(text, 2000) +
+        '\n\nJudge it; do not answer it. Reply with the JSON only.',
+      maxTokens: 80,
       timeoutMs: 8000,
     })
     const verdict = parseJson(replyText(reply))
     const picks = verdict && Array.isArray(verdict.pick) ? verdict.pick : []
-    return [...new Set(picks)].map((n) => habits[Number(n) - 1]).filter(Boolean).slice(0, 3)
+    return {
+      picked: [...new Set(picks)].map((n) => habits[Number(n) - 1]).filter(Boolean).slice(0, 3),
+      askFirst: Boolean(verdict && verdict.askFirst === true),
+    }
   } catch {
-    return []
+    return { picked: [], askFirst: false }
   }
 }
 
@@ -525,14 +558,19 @@ export function register(on) {
     lastNudgeAt = 0
     const habits = await loadHabits($)
     if (!habits.length) return next(e)
-    const picked = await pickHabits($, e.text, habits)
-    await debugLog($, 'habit reminder: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
-    if (!picked.length) return next(e)
-    const note =
-      "Habits to keep in mind for this request (from the user's lessons, picked automatically: act on the ones " +
-      "that fit and skip any that don't; don't recite them):\n" +
-      picked.map((h) => '- ' + h).join('\n')
-    return next({ ...e, context: [...(e.context ?? []), note] })
+    const { picked, askFirst } = await pickHabits($, e.text, habits)
+    await debugLog($, 'habit reminder: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
+    const notes = []
+    if (askFirst) notes.push(ASK_FIRST_NOTE)
+    if (picked.length) {
+      notes.push(
+        "Habits to keep in mind for this request (from the user's lessons, picked automatically: act on the ones " +
+        "that fit and skip any that don't; don't recite them):\n" +
+        picked.map((h) => '- ' + h).join('\n'),
+      )
+    }
+    if (!notes.length) return next(e)
+    return next({ ...e, context: [...(e.context ?? []), ...notes] })
   })
 
   // Judgment-in-code catch, after each edit to a code file.
