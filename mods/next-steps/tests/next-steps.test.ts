@@ -411,3 +411,35 @@ test("the user's own messages, and the expanded view, are left as Claude Code dr
   const expanded = await $.ui.mount(ROW('Done check: your last reply says "X"', { kind: 'plugin', name: 'next-steps' }, true))
   expect(await expanded.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
 })
+
+test('the next-step box is sent back once when the agent wrote nothing in the chat', async ($, on) => {
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('session.messages', () => ({ value: [
+    { role: 'user', text: 'For the love of Christ, will you please explain to me what to do?', toolUses: [] },
+    { role: 'assistant', text: '', toolUses: [] },
+  ] }))
+  on('tool.call', () => ({ result: [{ type: 'text', text: 'Shown in the next-step box.' }] }))
+
+  const first = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Click Create new policy.' })
+  expect(first.deny).toContain('write your reply to the user in the chat')
+  const second = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Click Create new policy.' })
+  expect(second.deny).toBeUndefined()
+})
+
+test('the next-step box goes through when the agent already wrote its reply', async ($, on) => {
+  on('session.messages', () => ({ value: [
+    { role: 'user', text: 'What do I do on this page?', toolUses: [] },
+    { role: 'assistant', text: '1. Click Create new policy. 2. Choose Emails. 3. Type your address.', toolUses: [] },
+  ] }))
+  on('tool.call', () => ({ result: [{ type: 'text', text: 'Shown in the next-step box.' }] }))
+
+  const out = await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'Steps above.' })
+  expect(out.deny).toBeUndefined()
+})
+
+test("the next-step box's description says the chat reply comes first", async ($, on) => {
+  on('tool.describe', ($, e) => ({ description: e.description }))
+  const out = await $.tool.describe({ tool: 'mcp__ccd_turn__wrap_up', description: 'Show a next-step box.', provider: { plugin: 'engine', tier: 'core' } })
+  expect(out.description).toContain('Write your reply in the chat before calling this')
+})

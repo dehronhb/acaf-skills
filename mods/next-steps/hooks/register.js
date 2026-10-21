@@ -161,6 +161,8 @@ let doneNotice = null
 let replyAnswersCheck = false
 // Code files the judgment-in-code catch has already spoken about this session.
 const judgedFiles = new Set()
+// Whether the next-step box reminder was already given this turn (at most once per turn, so it can't loop).
+let wrapUpReminded = false
 // The gut check: when the user last spoke (ms, 0 = not yet seen) and when the agent was last nudged.
 let lastPersonAt = 0
 let lastNudgeAt = 0
@@ -480,6 +482,7 @@ async function sendOption($, text) {
 export function register(on) {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) {
+      wrapUpReminded = false
       summary = null
       suggestion = ''
       if (doneNotice && !doneNotice.isSent) doneNotice = null
@@ -563,6 +566,51 @@ export function register(on) {
       }
     }
     return next(e)
+  })
+
+  // The Desktop app's next-step box (its wrap-up tool) tells the agent to write nothing after calling it. Agents
+  // read that as "write nothing at all" and give the user a one-line recap in place of the explanation; in one
+  // session the user, mid-way through a website setup, got seven one-line recaps in a row and had to plead for
+  // instructions. So: the tool's description says the chat reply comes first, and a call made before the agent
+  // has written anything this turn is sent back once with that reminder. (Presence of text is an exact check;
+  // whether the text is good enough is left to the agent.)
+  on('tool.describe', { tool: 'mcp__ccd_turn__wrap_up' }, async ($, e, next) =>
+    next({
+      ...e,
+      description:
+        e.description +
+        '\n\nWrite your reply in the chat before calling this: any explanation, instructions or steps the user ' +
+        'needs, in full. The recap is a one-line summary of that reply, not a replacement for it. When the user is ' +
+        'doing something by hand (a website, a dashboard, a settings screen), give numbered steps in the chat, one ' +
+        'action per step, naming the exact button or field.',
+    }),
+  )
+
+  on('tool.call', { tool: 'mcp__ccd_turn__wrap_up' }, async ($, e, next) => {
+    if (wrapUpReminded) return next(e)
+    try {
+      const messages = await $.session.messages()
+      let start = 0
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i]
+        if (m.role === 'user' && m.text && m.text.trim() && !(m.toolResults && m.toolResults.length)) {
+          start = i + 1
+          break
+        }
+      }
+      const wrote = messages.slice(start).some((m) => m.role === 'assistant' && m.text && m.text.trim().length > 0)
+      if (wrote) return next(e)
+    } catch {
+      return next(e)
+    }
+    wrapUpReminded = true
+    await debugLog($, 'wrap-up box: sent back once (no chat reply written this turn)')
+    return {
+      deny:
+        'Before using the next-step box, write your reply to the user in the chat: the explanation, instructions or ' +
+        'numbered steps they need, in full and in plain words. The box only summarizes that reply. Then call the ' +
+        'box again.',
+    }
   })
 
   // The done and habit checks reach the agent as a prompt this mod submits, which Claude Code shows as a
