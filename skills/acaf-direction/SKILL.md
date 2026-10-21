@@ -15,6 +15,7 @@ Write it down (in the decision record, the study file, or your own working notes
 
 - **Who it's for and what they're doing**, step by step, as a real person would. Start from the person, not the mechanism.
 - **What "good" looks like to the user**: the outcome they would judge by, not a metric that's easy for you to check.
+- **How big real use is**: how many people, how often, how much. When the answer would change how much work this deserves and you don't know it, ask the user before going deep: one question with 2 to 4 multiple-choice answers, and what each answer means for the work. ("Only 3 players, about 20 pictures each" can turn hours of worst-case work into none.)
 - **What you're assuming.** Separate facts you believe about the world, the user or the product (every business has a counter; the user runs one session per project; the photo arrives before the question) from decisions you're making. Check each fact you can check. Ask about the ones you can't, in plain words. A guessed fact never goes into a design, a document or a test without being marked as a guess.
 - **Whose limits these are.** A limit the user set (a budget, a platform, a date) binds. A limit you introduced (a length cap, a sample, a smaller scope, privacy caution about fake data, "I can't run that") doesn't, until the user agrees to it.
 
@@ -35,6 +36,7 @@ Two to four genuinely different routes, not variations on one. Always include:
 - **The best, whatever it costs.**
 - **The simplest thing that fully meets the need.** Simple means less machinery, not less outcome.
 - **What already exists**, if Step 2 found something.
+- **A cheap model, whenever the task involves judging meaning** (whether two texts mean the same, relevance, quality, tone, what kind of thing something is), with its cost per call. Agents lean toward keyword lists, patterns and thresholds for this, then spend hours patching them; put the model option on the table first.
 
 For each: what it gets the user, what it costs (money now, money at scale, time), how sure you are it works and why, and the cheapest way to find out. Cost is reported for every option; it never quietly removes one.
 
