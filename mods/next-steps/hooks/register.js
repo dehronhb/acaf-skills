@@ -405,13 +405,18 @@ async function doneCheck($, answer) {
         'Put it right now. If this check is mistaken, say so in one line and carry on.'
       notice = { kind: 'habit', label: broken }
     }
-    // Frame the message so the agent can't take it for the user's words, and so its reply tells the user what
-    // happened in one line (the user skims and didn't write this).
+    // Frame the message so the agent can't take it for the user's words. The agent's answer becomes the last
+    // message in the chat, the one the user reads; an answer about the check alone would push the reply that
+    // mattered out of view (the user, 2026-10-20). So the answer is the whole reply again, corrected, with the
+    // check named in one line at the top. Not a recap: everything the user needed from the original reply.
     const label = needsCheck ? 'done check' : 'habit check'
     text =
       '[Automatic ' + label + ' from the next-steps mod. This message is NOT from the user, who did not write or ' +
-      'see it.]\n\n' + text + '\n\nIn your reply to the user, start with one line naming this: "The automatic ' +
-      label + ' asked me to …", then what you found or changed.'
+      'see it.]\n\n' + text + '\n\nYour answer replaces your last reply as the message the user reads, and they ' +
+      'will not scroll up. So: start with one line, "The automatic ' + label + ' asked me to …", and what you ' +
+      'found or changed. Then give your last reply again in full, corrected where the check changed anything: ' +
+      'everything the user needs to know, what happens next, and any question for them, ending with that. If ' +
+      'your last reply had nothing for the user beyond a summary, keep it as short as it was.'
     lastAnswer = '' // the summary for this reply is now out of date: the agent is about to act on the check
     summary = null
     replyAnswersCheck = true
