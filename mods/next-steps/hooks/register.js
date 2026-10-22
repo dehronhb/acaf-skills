@@ -519,6 +519,19 @@ async function sendOption($, text) {
   }
 }
 
+// True for another program's own call to Claude (`claude -p` or the Agent SDK, with no screen attached), such as
+// the debate app's judging calls on the user's plan. Nobody is at that prompt, so this mod's notes and checks
+// would only rewrite that program's prompts and add a model call to each one (seen 2026-10-22: habit
+// reminders attached to the app's "PARENT CLAIM" prompts). The Desktop app and the terminal attach a screen,
+// so a person's session is never skipped. If the screen list can't be read, the mod runs as before.
+async function isAppCall($) {
+  try {
+    return (await $.session.surfaces()).length === 0
+  } catch {
+    return false
+  }
+}
+
 export function register(on) {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) {
@@ -532,7 +545,7 @@ export function register(on) {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId || e.isAborted || !e.answer || !e.answer.trim()) return result
+    if (e.agentId || e.isAborted || !e.answer || !e.answer.trim() || (await isAppCall($))) return result
     const answer = e.answer
     lastAnswer = answer
     if (replyAnswersCheck) {
@@ -553,7 +566,7 @@ export function register(on) {
     const kind = e.origin && e.origin.kind
     const fromPerson =
       !kind || ['composer', 'bridge', 'sdk', 'unclassified'].includes(kind) || (kind === 'plugin' && e.origin.asUser)
-    if (!fromPerson || !e.text || !e.text.trim() || isCompactionSummary(e.text)) return next(e)
+    if (!fromPerson || !e.text || !e.text.trim() || isCompactionSummary(e.text) || (await isAppCall($))) return next(e)
     lastPersonAt = await nowMs($)
     lastNudgeAt = 0
     const habits = await loadHabits($)
@@ -576,7 +589,7 @@ export function register(on) {
   // Judgment-in-code catch, after each edit to a code file.
   on('classic.PostToolUse', async ($, e, next) => {
     const result = (await next(e)) || {}
-    if (e.agent_id) return result
+    if (e.agent_id || (await isAppCall($))) return result
     const notes = []
     const codeNote = await judgmentCodeNote($, e.tool_name, e.tool_input)
     if (codeNote) notes.push(codeNote)

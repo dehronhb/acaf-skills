@@ -208,16 +208,29 @@ async function logDirection($, root, line) {
   }
 }
 
+// True for another program's own call to Claude (`claude -p` or the Agent SDK, with no screen attached), such as
+// the debate app's judging calls on the user's plan. Nobody is at that prompt, so this mod's notes and checks
+// would only rewrite that program's prompts and add a model call to each one (seen 2026-10-22: habit
+// reminders attached to the app's "PARENT CLAIM" prompts). The Desktop app and the terminal attach a screen,
+// so a person's session is never skipped. If the screen list can't be read, the mod runs as before.
+async function isAppCall($) {
+  try {
+    return (await $.session.surfaces()).length === 0
+  } catch {
+    return false
+  }
+}
+
 export function register(on) {
   on('session.start', async ($, e, next) => {
-    if (await findAcafRoot($)) {
+    if (!(await isAppCall($)) && (await findAcafRoot($))) {
       await $.tool.register({ name: 'direction', description: DIRECTION_DESCRIPTION, inputSchema: DIRECTION_SCHEMA })
     }
     return next(e)
   })
 
   on('prompt.submit', async ($, e, next) => {
-    if (!(await findAcafRoot($))) return next(e)
+    if ((await isAppCall($)) || !(await findAcafRoot($))) return next(e)
     const notes = [ROUTE_NOTE]
     if (isFromPerson(e) && !isLoopCommand(e.text) && (await isCorrection($, e.text))) notes.push(LESSON_NOTE)
     if (await shouldPrepare($)) notes.push(PREPARE_NOTE)
@@ -227,7 +240,7 @@ export function register(on) {
   // Long autonomous runs get no new prompts, so the prepare note can also arrive after a tool call.
   on('classic.PostToolUse', async ($, e, next) => {
     const result = (await next(e)) || {}
-    if (e.agent_id || !(await shouldPrepare($))) return result
+    if (e.agent_id || (await isAppCall($)) || !(await shouldPrepare($))) return result
     return { ...result, additionalContext: [...(result.additionalContext ?? []), PREPARE_NOTE] }
   })
 
@@ -241,7 +254,7 @@ export function register(on) {
   on('classic.SessionStart', async ($, e, next) => {
     const result = (await next(e)) || {}
     if (e.source !== 'compact' && e.source !== 'resume') return result
-    if (!(await findAcafRoot($))) return result
+    if ((await isAppCall($)) || !(await findAcafRoot($))) return result
     if (e.source === 'compact') prepared = false
     return { ...result, additionalContext: [...(result.additionalContext ?? []), REORIENT_NOTE] }
   })

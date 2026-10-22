@@ -333,6 +333,26 @@ test('a request for something the user will see, with choices open, tells the ag
   expect(seen[1].context ?? []).toEqual([])
 })
 
+test("another program's claude -p call (no screen) gets no notes and no model call", async ($, on) => {
+  const seen = []
+  let modelCalls = 0
+  stubHabitFiles(on)
+  on('session.surfaces', () => ({ value: [] }))
+  on('session.messages', () => ({ value: [] }))
+  on('model.complete', () => {
+    modelCalls++
+    return { value: { isAnswered: true, text: '{"pick": [1], "askFirst": true}', usage: USAGE } }
+  })
+  on('prompt.submit', ($, e) => {
+    seen.push(e)
+    return { text: e.text }
+  })
+
+  await $.prompt.submit({ text: 'PARENT CLAIM: find what bears on this claim.', wait: false, origin: { kind: 'sdk' } })
+  expect(seen[0].context ?? []).toEqual([])
+  expect(modelCalls).toBe(0)
+})
+
 test('a clearly broken habit sends the agent back once', async ($, on) => {
   const clock = mock.clock(on)
   const sent: string[] = []
