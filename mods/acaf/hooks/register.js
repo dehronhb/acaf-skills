@@ -53,33 +53,52 @@ const PREPARE_NOTE =
 const NOT_TYPED_PREFIXES = ['This session is being continued from a previous conversation']
 
 // The examples show where the line falls; they are not a list to match against. Judge by the rule.
+// Tightened 2026-10-22 at the user's request: the earlier one-word judge flagged about 45% of the user's D&D
+// messages, most of them new requests, picks, changes of mind and questions. The line is the user's own: a
+// correction shows a mistake the agent should have caught without being told (a bug, a fault it would see by
+// looking, a misread, a shortcut, its route questioned). Measured on 36 real labeled messages: the old judge on
+// Haiku 23/36; this one on Sonnet about 32/36. Naming the kind before the verdict is what made it steady.
 const JUDGE_SYSTEM = [
-  'You help an AI coding agent notice when the person it works for is steering it back.',
-  "You get the agent's last message and the person's reply.",
+  'You help an AI coding agent notice when the person it works for is steering it back, so it can learn from',
+  "its own mistakes. You get the agent's last message and the person's reply. You are not the agent: never answer",
+  'the reply, only judge it.',
   '',
-  'CORRECTION: the reply shows the agent went, or is going, the wrong way: a wrong assumption; a misread ' +
-    "request; questioning or rejecting the agent's own choice or approach; a limit or shortcut nobody asked for; " +
-    'work handed back that the agent could do itself; rebuilding what already exists; calling something done or ' +
-    "impossible that isn't; fixing one case when every case was wanted; or saying that something the agent built " +
-    'or changed is broken or wrong, even when it is phrased as a request to fix it.',
-  'NOT: picking or approving an option the agent offered (even one it did not recommend); a new task; a ' +
-    'question asking for information; a requirement the agent had no way to know; a taste tweak to work that ' +
-    'went as agreed; chat.',
-  'If any part of the reply is a correction, answer CORRECTION.',
+  'The test: does the reply show the agent got something wrong that it should have got right without being told?',
+  '',
+  'CORRECTION, when the reply shows any of these:',
+  '- something the agent built or changed is broken, does nothing, looks wrong, or slipped back ("the button does',
+  '  nothing", "the page loads blank at first", "the fix still looks off");',
+  '- a plain fault the agent should have seen by looking at its own work: wrong size or shape, text that makes no',
+  '  sense, a wrong fact, a missing rule the request implied;',
+  '- the agent misread what was asked, or assumed something untrue;',
+  '- a shortcut nobody asked for: a limit or smaller version, work handed back that the agent could do itself,',
+  '  rebuilding what already exists, calling something done or impossible that is not, fixing one case when',
+  '  every case was wanted;',
+  "- the person questions or rejects the agent's route or claim (\"why can't you…\", \"there must be a way…\", \"we",
+  '  already have…", "why did you…", "why is this taking so long?");',
+  "- the person could not follow the agent's explanation or steps and is frustrated by it.",
+  '',
+  'NOT, when the reply moves the work forward without showing a mistake:',
+  '- a pick, approval, go-ahead or "lock it in", including choosing several offered options ("do both");',
+  '- a new idea or requirement, even worded as "should", "need", "let them" or "I just realized";',
+  '- a change of mind about something the person set earlier ("never mind, make it 50", "drop the limits");',
+  '- a question asking for information, for a simpler explanation, or whether to click something;',
+  '- checking what the agent meant ("this panel?"), or asking it to do a task ("open that link");',
+  '- a taste tweak to work that matched the request.',
+  'If any part of the reply is a correction, answer CORRECTION. When unsure, NOT.',
   '',
   'Examples of where the line falls:',
-  '"the save button does nothing now, fix it" -> CORRECTION (their build is broken)',
-  '"why did you add a second database? we already have one" -> CORRECTION (questions its choice)',
-  '"yes go, but no paid services, I said free only" -> CORRECTION (part of it corrects)',
-  '"no, go with B" when B was one of the options -> NOT (a pick)',
-  '"what does the sync step do?" -> NOT (asks for information)',
-  '"also add a dark mode" -> NOT (a new requirement)',
-  '"it\'s asking if it should be saved. should I?" -> NOT (a question)',
-  '"oh, do you mean this panel on the right?" -> NOT (checking what the agent meant)',
-  '"never mind, raise it to 100" -> NOT (a change of mind)',
-  '"what is taking so long? why are you struggling with that small thing?" -> CORRECTION (the approach is off)',
+  '"the export button stopped working after your change" -> CORRECTION (broken)',
+  '"the photos are tiny and cropped sideways, why?" -> CORRECTION (a fault it should have seen)',
+  '"why are you paying for that API when my plan covers it?" -> CORRECTION (questions its route)',
+  '"I followed your steps and I still don\'t know where to click!" -> CORRECTION (its steps failed)',
+  '"go with the second one, and also do the cleanup" -> NOT (picks)',
+  '"players should also be able to rename their character" -> NOT (a new requirement)',
+  '"forget the cap, let them make as many as they like" -> NOT (a change of mind)',
+  '"is that cost only for the search part?" -> NOT (asks for information)',
   '',
-  'Reply with exactly one word: CORRECTION or NOT.',
+  'First name the one kind from the lists above that fits the reply best, in a few words, then the verdict.',
+  'Reply with one line only, in this form: KIND: <a few words> | CORRECTION  or  KIND: <a few words> | NOT',
 ].join('\n')
 
 const DIRECTION_DESCRIPTION =
@@ -181,15 +200,18 @@ async function isCorrection($, text) {
     const last = [...messages].reverse().find((m) => m.role === 'assistant' && m.text)
     if (!last) return false
     const reply = await $.model.complete({
-      model: 'haiku',
+      model: 'sonnet',
+      effort: 'low',
       system: JUDGE_SYSTEM,
       prompt: "The agent's last message:\n" + clip(last.text, 2000) + "\n\nThe person's reply:\n" + clip(text, 3000),
-      maxTokens: 5,
-      timeoutMs: 8000,
+      maxTokens: 60,
+      timeoutMs: 15000,
     })
     const answer = typeof reply === 'string' ? reply : reply && reply.isAnswered ? reply.text : ''
-    const isIt = answer.trim().toUpperCase().startsWith('CORRECTION')
-    await debugLog($, 'judge: ' + (isIt ? 'CORRECTION' : 'not') + ': ' + text.replace(/\s+/g, ' ').slice(0, 100))
+    const verdict = answer.match(/\|\s*(CORRECTION|NOT)\b/i)
+    const isIt = verdict ? verdict[1].toUpperCase() === 'CORRECTION' : answer.trim().toUpperCase().startsWith('CORRECTION')
+    const kind = (answer.match(/KIND:\s*([^|\n]{1,80})/i) || [])[1] || ''
+    await debugLog($, 'judge: ' + (isIt ? 'CORRECTION' : 'not') + (kind ? ' (' + kind.trim() + ')' : '') + ': ' + text.replace(/\s+/g, ' ').slice(0, 100))
     return isIt
   } catch {
     return false

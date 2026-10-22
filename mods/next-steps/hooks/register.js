@@ -572,7 +572,9 @@ export function register(on) {
     const habits = await loadHabits($)
     if (!habits.length) return next(e)
     const { picked, askFirst } = await pickHabits($, e.text, habits)
-    await debugLog($, 'habit reminder: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
+    // The screen it ran on (e.g. "desktop"), so the log shows the no-screen skip is not catching real sessions.
+    const screens = await $.session.surfaces().then((s) => s.join(','), () => '?')
+    await debugLog($, 'habit reminder [' + screens + ']: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
     const notes = []
     if (askFirst) notes.push(ASK_FIRST_NOTE)
     if (picked.length) {
