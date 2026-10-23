@@ -380,6 +380,31 @@ test('a clearly broken habit sends the agent back once', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /Habit check: the agent may have broken/ })).toBeDefined()
 })
 
+test('a done check and a broken habit go back together in one message', async ($, on) => {
+  const clock = mock.clock(on)
+  const sent: string[] = []
+  stubBand(on)
+  stubHabitFiles(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.messages', () => ({ value: [{ role: 'user', text: 'Make draft 3.', toolUses: [] }] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  on('model.complete', ($, e) => {
+    const text = e.system.includes('never tried')
+      ? JSON.stringify({ claim: 'Draft 3 fixes the elbow', needsCheck: true, brokenHabit: 'Look at the result the way I will see it before handing it over.', why: 'no link and nothing opened' })
+      : JSON.stringify({ state: 'nothing', headline: 'Draft 3 ready.', options: [] })
+    return { value: { isAnswered: true, text, usage: USAGE } }
+  })
+
+  await finishTurn($, clock, 'Draft 3 is ready; it fixes the elbow.')
+  expect(sent.length).toBe(1)
+  expect(sent[0]).toContain('Done check')
+  expect(sent[0]).toContain('no link and nothing opened')
+})
+
 test('code that judges meaning with a word list gets the model option, once per file', async ($, on) => {
   let calls = 0
   on('fs.exists', () => ({ value: false }))

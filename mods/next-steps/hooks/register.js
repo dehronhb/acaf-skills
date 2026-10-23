@@ -430,6 +430,12 @@ async function doneCheck($, answer) {
         "user plainly whether it works. If it doesn't, fix it, or say it is changed but not yet checked. If you " +
         'already tried it earlier this session, or the reply made no such claim, say so in one line and carry on. ' +
         "If it can only be tried on the user's own device or account, say it is changed but not checked there."
+      // A broken habit rides along in the same message, so a done check never hides it (one send-back per reply).
+      if (broken) {
+        text +=
+          ' Also, your last reply or actions look like they break one of the user\'s habits: "' + broken + '". ' +
+          (why ? 'What shows it: ' + why + '. ' : '') + 'Put that right too, or say in one line why it does not apply.'
+      }
       notice = { kind: 'done', label: claim }
     } else {
       text =
