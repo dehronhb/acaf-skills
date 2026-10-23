@@ -225,3 +225,16 @@ test('a lessons file under 6,000 words gets no audit note', async ($, on) => {
   await $.prompt.submit({ text: 'build the next slice', wait: false, origin: { kind: 'composer' } })
   expect(seen[0].context.some((c: string) => c.includes('Lessons audit due'))).toBe(false)
 })
+
+test('no audit note while another session has claimed the audit', async ($, on) => {
+  const calls: string[] = []
+  const seen = []
+  stubProject(on, true)
+  stubModel(on, 'KIND: a pick | NOT', calls)
+  capturePrompt(on, seen)
+  on('fs.list', () => ({ value: [{ name: 'lessons_learned.md', kind: 'file' }] }))
+  on('fs.read', () => ({ value: '# Lessons\n<!-- Lessons audit in progress: D&D Session 0 Prep, 2026-10-23 14:00 -->\n' + 'word '.repeat(9000) }))
+
+  await $.prompt.submit({ text: 'build the next slice', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context.some((c: string) => c.includes('Lessons audit due'))).toBe(false)
+})

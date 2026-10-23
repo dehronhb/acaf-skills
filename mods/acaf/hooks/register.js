@@ -30,7 +30,10 @@ async function lessonsAuditNote($, root) {
       .map((f) => f.name)
     let biggest = { name: '', words: 0 }
     for (const name of names) {
-      const words = String(await $.fs.read(root + '/acaf/' + name)).split(/\s+/).filter(Boolean).length
+      const text = String(await $.fs.read(root + '/acaf/' + name))
+      // Another session has claimed the audit (acaf-lessons-audit Step 0): don't start a second one.
+      if (/<!--\s*Lessons audit in progress/i.test(text.slice(0, 2000))) return ''
+      const words = text.split(/\s+/).filter(Boolean).length
       if (words > biggest.words) biggest = { name, words }
     }
     if (biggest.words <= LESSONS_AUDIT_WORDS) return ''

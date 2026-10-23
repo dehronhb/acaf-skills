@@ -35,6 +35,17 @@ disagree, the user decides, not the auditor.
 - **`acaf/lessons_archive.md`**: every original entry, word for word, under a header that says what the file
   is, that agents don't need to read it by default, and where each entry's principle now lives.
 
+## Step 0: claim it, so only one session audits
+
+Several sessions can work on one project, and each gets the "audit due" note, so two audits can start at once.
+(This happened on the first run: two sessions wrote two different drafts of the same file.)
+- If the lessons file's first lines include `<!-- Lessons audit in progress: ... -->`, another session is
+  auditing. Don't start one; carry on with your work.
+- Otherwise, add that line under the title before you start, with your session's name and the date and time
+  (`<!-- Lessons audit in progress: D&D Session 0 Prep, 2026-10-23 14:00 -->`). Commit it by path, so other
+  sessions see it. Remove it when the audit is applied, or when you drop it.
+- If the marker is more than a day old, the audit was abandoned. Remove it and start.
+
 ## Step 1: inventory
 
 Read the whole file. List every entry in your notes with:
