@@ -197,3 +197,31 @@ test('a dismissed direction check approves nothing', async ($, on) => {
   const out = await $.tool.call(CHECK)
   expect(out.result).toContain('no direction is approved')
 })
+
+test('a lessons file past 6,000 words gets the audit note once per session; the archive does not count', async ($, on) => {
+  const calls: string[] = []
+  const seen = []
+  stubProject(on, true)
+  stubModel(on, 'KIND: a pick | NOT', calls)
+  capturePrompt(on, seen)
+  on('fs.list', () => ({ value: [{ name: 'lessons_learned.md', kind: 'file' }, { name: 'lessons_archive.md', kind: 'file' }, { name: 'change_log.md', kind: 'file' }] }))
+  on('fs.read', ($, e) => ({ value: e.path.includes('archive') ? 'word '.repeat(50000) : 'word '.repeat(7000) }))
+
+  await $.prompt.submit({ text: 'build the next slice', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context.some((c: string) => c.includes('Lessons audit due') && c.includes('7,000 words'))).toBe(true)
+  await $.prompt.submit({ text: 'and the one after', wait: false, origin: { kind: 'composer' } })
+  expect(seen[1].context.some((c: string) => c.includes('Lessons audit due'))).toBe(false)
+})
+
+test('a lessons file under 6,000 words gets no audit note', async ($, on) => {
+  const calls: string[] = []
+  const seen = []
+  stubProject(on, true)
+  stubModel(on, 'KIND: a pick | NOT', calls)
+  capturePrompt(on, seen)
+  on('fs.list', () => ({ value: [{ name: 'lessons.md', kind: 'file' }] }))
+  on('fs.read', () => ({ value: 'word '.repeat(1200) }))
+
+  await $.prompt.submit({ text: 'build the next slice', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context.some((c: string) => c.includes('Lessons audit due'))).toBe(false)
+})

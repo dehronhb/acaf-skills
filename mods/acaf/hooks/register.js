@@ -15,6 +15,36 @@ const PREPARE_AT = 200000
 // Whether the agent has had the prepare note since the last condensing. Reset on reload.
 let prepared = false
 
+// The lessons audit trigger. A lessons file that only grows stops being read (one project's reached 51,000
+// words), so past this size the agent is told, once per session, to run acaf-lessons-audit at its next natural
+// break. A word count is exact, so code makes this call. The archive (lessons_archive.md) doesn't count.
+const LESSONS_AUDIT_WORDS = 6000
+let auditNoted = false
+
+// The note, or '' when the lessons file is under the size or can't be read.
+async function lessonsAuditNote($, root) {
+  try {
+    const files = await $.fs.list(root + '/acaf')
+    const names = files
+      .filter((f) => f.kind === 'file' && /^lessons.*\.md$/i.test(f.name) && !/archive/i.test(f.name))
+      .map((f) => f.name)
+    let biggest = { name: '', words: 0 }
+    for (const name of names) {
+      const words = String(await $.fs.read(root + '/acaf/' + name)).split(/\s+/).filter(Boolean).length
+      if (words > biggest.words) biggest = { name, words }
+    }
+    if (biggest.words <= LESSONS_AUDIT_WORDS) return ''
+    return (
+      'Lessons audit due (from the ACAF mod, not the user): acaf/' + biggest.name + ' is about ' +
+      Math.round(biggest.words / 1000) + ',000 words, past the ~6,000 an agent can read before acting. Mention it ' +
+      'to the user in one line, and run the acaf-lessons-audit skill at the next natural break (when the current ' +
+      'task is done, before new work). Don\'t stop the current task for it. If an audit is already under way, ignore this.'
+    )
+  } catch {
+    return ''
+  }
+}
+
 // One-step picks from a "What's next" menu. Exact matches only: these are never
 // corrections, so they skip the model call.
 const LOOP_COMMANDS = new Set([
@@ -273,10 +303,16 @@ export function register(on) {
   on('prompt.submit', async ($, e, next) => {
     const kind = e.origin && e.origin.kind
     if (kind === 'composer' || kind === 'bridge' || (kind === 'plugin' && e.origin.asUser)) personSeen = true
-    if ((await isAppCall($)) || !(await findAcafRoot($))) return next(e)
+    const root = (await isAppCall($)) ? null : await findAcafRoot($)
+    if (!root) return next(e)
     const notes = [ROUTE_NOTE]
     if (isFromPerson(e) && !isLoopCommand(e.text) && (await isCorrection($, e.text))) notes.push(LESSON_NOTE)
     if (await shouldPrepare($)) notes.push(PREPARE_NOTE)
+    if (!auditNoted && isFromPerson(e)) {
+      const auditNote = await lessonsAuditNote($, root)
+      auditNoted = true // checked once per session, whatever the answer
+      if (auditNote) notes.push(auditNote)
+    }
     return next({ ...e, context: [...(e.context ?? []), ...notes] })
   })
 

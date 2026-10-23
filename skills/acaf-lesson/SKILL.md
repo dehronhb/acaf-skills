@@ -56,7 +56,17 @@ The correction changes the approach when the right fix uses a different method, 
 
 ## Step 4 — record the lesson
 
-Append to the project's lessons file: `acaf/lessons.md`, or the one the project already keeps (any `acaf/lessons*.md`, such as `lessons_learned.md`, or one its `CLAUDE.md` names; if several exist, use the one `CLAUDE.md` names, else the largest, and mention the others to the user). Never start a second lessons file. Create `acaf/lessons.md` with a `# Lessons` heading only if none exists. Follow an existing file's layout and numbering for entries, and include these parts:
+The project's lessons file is `acaf/lessons.md`, or the one the project already keeps (any `acaf/lessons*.md`, such as `lessons_learned.md`, or one its `CLAUDE.md` names; if several exist, use the one `CLAUDE.md` names, else the largest, and mention the others to the user). Never start a second lessons file. Create `acaf/lessons.md` with a `# Lessons` heading only if none exists.
+
+**First, look at what's already there.** A lessons file that only grows stops being read: one project's reached 51,000 words of near-repeats. So before writing, search the file (its principles, Top habits and entries; skip `lessons_archive.md`) for lessons about the same cause or the same kind of work, and read them. Then do exactly one of these:
+- **Already covered:** don't add an entry. Add this case to the existing one as a one-line example with its date, and sharpen its wording if this case showed a gap. *Example:* a second "I called it done from the tests" goes under the existing "check it the way the user meets it" lesson.
+- **A refinement:** the existing lesson is right but missed a nuance this case shows. Rewrite that lesson to include it, in place, and note the date of the change.
+- **A conflict:** an existing lesson would have told you to do the opposite here. *Example:* an old "always ask before spending" against the user now saying "just run the cheap test". Don't pick one yourself. Ask the user one question in plain words: quote both lessons in a line each, give 2 to 4 multiple-choice answers that are possible nuances (who, when, how much), and put your pick first. Then rewrite the lesson as one entry with their answer and the date, quoting them.
+- **New:** nothing related exists. Add an entry.
+
+**Facts are not lessons.** How a tool, engine or service behaves ("this API caps uploads at 8 MB") goes in the project's topic notes (`acaf/notes/<topic>.md`, created if needed, with one line under `## Reference notes` in the lessons file saying when to read it). The lessons file holds how to think and act.
+
+Follow the file's layout and numbering for a new entry, and include these parts. Keep it to about six lines: the story belongs in the change log or deviation log, not here.
 
 ```
 ## L-<n> — <the habit, as an instruction to yourself> (<date>)
@@ -79,6 +89,8 @@ Mark **kit** when the habit would help on any project; those get folded into the
 Why the list exists: a long lessons file gets recorded but not absorbed. In one project a 700-line file sat beside the same struggles repeating. The list is what every session reads and a mod reminds agents of; the full entries below it are the evidence, and project facts to look up when doing that kind of work.
 
 Lessons go in the project's records, not private memory, so every future session and every other agent on the project reads them.
+
+If the lessons file is now over about 6,000 words, say so in your reply and suggest running `acaf-lessons-audit` at the next natural break (the ACAF mod also reminds you).
 
 ## Step 5 — tell the user, briefly
 
