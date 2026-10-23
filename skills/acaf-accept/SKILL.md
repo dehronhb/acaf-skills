@@ -32,7 +32,7 @@ Re-verify the existing contract rows this initiative could affect: every verifie
 - Move the initiative to `## Completed` in the manifest (date + one-line outcome). Close it with human-only checks still pending, and list them in the handoff; a human check that later fails becomes an `FB-<n>` entry (or a new initiative if the user says so), not a reopening of this one.
 - Rewrite `acaf/handoff_summary.md`: what the project now is, what just shipped, what's parked, the recommended next initiative. Written for a reader with NO access to this conversation.
 - One commit: `docs: close <initiative> (accepted against criteria)`.
-- **Lessons:** if the lessons file grew during this initiative and is now over about 6,000 words, run `acaf-lessons-audit` now, as its own commit. The end of an initiative is the natural break for it. Under that size, skip this step.
+- **Lessons:** if the lessons file (not the archive) is over about 6,000 words, run `acaf-lessons-audit` now, as its own commit. The end of an initiative is the natural break for it. Under that size, skip this step.
 
 ## Step 6 — the batched human checklist
 

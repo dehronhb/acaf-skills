@@ -1,6 +1,6 @@
 ---
 name: acaf-lessons-audit
-description: "Condense an ACAF project's lessons file into broad principles an agent can actually read before acting: merge lessons that share a cause, ask the user about lessons that conflict, move tool facts into topic notes read only when doing that kind of work, and move the old detailed entries to an archive. Use when the ACAF mod says the lessons file has grown past about 6,000 words, at the end of an initiative if the file grew, or when the user says \"audit the lessons\" or \"consolidate lessons\". Run it at a natural break, not in the middle of a task."
+description: "Condense an ACAF project's lessons file into broad principles an agent can actually read before acting: merge lessons that share a cause, ask the user about lessons that conflict, move tool facts into topic notes read only when doing that kind of work, and move the old detailed entries to an archive. Use when the ACAF mod says the lessons file has grown past about 6,000 words, at the end of an initiative when the file is over that size, or when the user says \"audit the lessons\" or \"consolidate lessons\". Run it at a natural break, not in the middle of a task."
 ---
 
 # ACAF Lessons Audit: from a pile of incidents to wisdom an agent can use
@@ -59,7 +59,9 @@ picture prompts stays about pictures unless several entries show it wider.
 
 Drop a habit from the principles (it stays in the archive) when:
 - the user's every-project list (`~/.claude/CLAUDE.md`, "Top habits (every project)") or the kit's own rules
-  already say it in full; or
+  already tell an agent to do the same thing in that moment. If this project's entries add a nuance the
+  general rule lacks, keep the principle for that nuance only. List every habit you drop this way in your
+  report, so the user can see it; or
 - it was superseded by a later lesson. Say so in the archive header for that entry.
 
 ## Step 3: find conflicts, and ask the user
