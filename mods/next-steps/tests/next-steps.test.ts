@@ -423,6 +423,30 @@ test('code that judges meaning with a word list gets the model option, once per 
   expect(calls).toBe(1)
 })
 
+test('instructions another model reads get the acaf-prompt pointer, once per file; CLAUDE.md never does', async ($, on) => {
+  let calls = 0
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('classic.PostToolUse', () => ({}))
+  on('model.complete', ($, e) => {
+    calls += 1
+    const text = e.system.includes('another AI model will read')
+      ? '{"isPrompt": true, "what": "the story writer\'s rules"}'
+      : '{"judgesMeaning": false}'
+    return { value: { isAnswered: true, text, usage: USAGE } }
+  })
+  const rules = { file_path: '/work/app/story_rules.md', old_string: 'x', new_string: 'You write a short story about the hero. Never mention the secret. Reply with the story only.' }
+
+  const first = await $.classic.PostToolUse({ tool_name: 'Edit', tool_input: rules })
+  expect(first.additionalContext[0]).toContain('acaf-prompt')
+  expect(first.additionalContext[0]).toContain('the story writer')
+  const again = await $.classic.PostToolUse({ tool_name: 'Edit', tool_input: rules })
+  expect(again.additionalContext).toBeUndefined()
+  const before = calls
+  await $.classic.PostToolUse({ tool_name: 'Edit', tool_input: { file_path: '/work/CLAUDE.md', new_string: 'You are working in this repo. Never mention secrets.' } })
+  expect(calls).toBe(before)
+})
+
 test('edits to non-code files, or code with no sign of judging, cost nothing', async ($, on) => {
   let calls = 0
   on('classic.PostToolUse', () => ({}))

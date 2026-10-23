@@ -1,6 +1,6 @@
 # CLAUDE.md — this project runs on the ACAF method
 
-This project's memory lives in the `acaf/` folder, not in any conversation. The ACAF skills (acaf-onboard, acaf-plan, acaf-explore, acaf-direction, acaf-grill, acaf-build, acaf-review, acaf-accept, acaf-lesson, acaf-pickup, acaf-continue) are the workflow. These standing rules apply to every turn, whether or not a skill is invoked.
+This project's memory lives in the `acaf/` folder, not in any conversation. The ACAF skills (acaf-onboard, acaf-plan, acaf-explore, acaf-direction, acaf-grill, acaf-prompt, acaf-build, acaf-review, acaf-accept, acaf-lesson, acaf-pickup, acaf-continue) are the workflow. These standing rules apply to every turn, whether or not a skill is invoked.
 
 ## Session start
 
@@ -23,6 +23,7 @@ Route every message by intent before acting. This table says *when*; each skill'
 | The user corrects course: a wrong assumption, a rejected or questioned approach ("why did you…", "are you sure…", "is this the right path?"), a misread request, or a bug they found in your work | `acaf-lesson` first (it checks whether you were actually wrong), then continue on the corrected route |
 | A fork in the road, at any point: a choice the user would notice, would pay for, or that is hard to undo (a vendor or paid service, dropping a feature, changing what the user sees, a test plan that spends money); dropping an approach; concluding something can't be done. *Not* a fork: how a function is structured, a helper's name, which standard call to use. | `acaf-direction` |
 | A request that adds or changes something the user, or the people they build for, will see or use (a screen, a page, a flow, navigation, who has to sign in, how the user will try it out) and leaves choices about that experience open; "grill me", "ask me first". *Not* this: a fix whose right behavior is obvious, work the user won't see, or a request that already settles the choices ("make the button gold like the survey's"). | `acaf-grill` first (questions only the user can answer, multiple-choice with your pick first), then the row that fits, usually `acaf-plan` or `acaf-build` |
+| Writing or changing instructions another model will follow: a prompt or rules file in the product (a writer, a checker or judge, a prompt-writer for an image model), or a brief for a subagent that does real work. *Not* this: docs and records for people, or this file. | `acaf-prompt` (design what the model gets and must not get, write it, then test it on the real model with hard real cases before calling it done) |
 | "park this: …" | Append an `FB-<n>` line to `acaf/follow_up_backlog.md` — no skill, no derail |
 
 - **No phase is an exemption.** In discovery, before any initiative exists, research, spikes, demos and asset trials are explorations: they go through `acaf-explore`, which writes its study file before the first trial. A phase limits *what* gets built, never *which skill* applies.
