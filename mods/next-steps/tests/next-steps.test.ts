@@ -44,6 +44,28 @@ test('after a reply that needs a choice, the band shows the decision and each op
   }
 })
 
+test('a reply that ends while no screen is attached still gets its band once the session is drawn', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  on('session.surfaces', () => ({ value: [] }))
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.messages', () => ({ value: [] }))
+  on('model.complete', ($, e) => {
+    const text = e.system.includes('never tried')
+      ? JSON.stringify({ claim: '', needsCheck: false })
+      : JSON.stringify({ state: 'choose', headline: 'Ship it now or test first?', options: [{ say: '1', does: 'I ship it.' }] })
+    return { value: { isAnswered: true, text, usage: USAGE } }
+  })
+
+  await finishTurn($, clock)
+  const ui = await $.ui.mount(BAND('desktop'))
+  await clock.advance(10)
+  await ui.unmount()
+  const again = await $.ui.mount(BAND('desktop'))
+  expect(await again.find({ type: 'Text', text: /Your turn: Ship it now/ })).toBeDefined()
+})
+
 test('a running helper agent turns the band into a wait, whatever the reply said', async ($, on) => {
   const clock = mock.clock(on)
   stubBand(on)

@@ -235,23 +235,44 @@ async function logDirection($, root, line) {
 // would only rewrite that program's prompts and add a model call to each one (seen 2026-10-22: habit
 // reminders attached to the app's "PARENT CLAIM" prompts). The Desktop app and the terminal attach a screen,
 // so a person's session is never skipped. If the screen list can't be read, the mod runs as before.
+// A screen list alone is not enough: a Desktop session the user isn't looking at, or one just starting, can
+// report no screen (2026-10-23). So any sign of a person (a screen at any moment, the panel being drawn, a typed
+// message, an interactive start) marks the session as theirs for good; only a session that has shown none of
+// these and has no screen right now counts as a program's call.
+let personSeen = false
 async function isAppCall($) {
+  if (personSeen) return false
   try {
-    return (await $.session.surfaces()).length === 0
+    if ((await $.session.surfaces()).length) {
+      personSeen = true
+      return false
+    }
+    return true
   } catch {
     return false
   }
 }
 
 export function register(on) {
+  // Registered whatever the screen: at the start of a Desktop session no screen is attached yet, and the tool
+  // is harmless in a program's call (it only appears in ACAF projects).
   on('session.start', async ($, e, next) => {
-    if (!(await isAppCall($)) && (await findAcafRoot($))) {
+    if (e.isInteractive) personSeen = true
+    if (await findAcafRoot($)) {
       await $.tool.register({ name: 'direction', description: DIRECTION_DESCRIPTION, inputSchema: DIRECTION_SCHEMA })
     }
     return next(e)
   })
 
+  // Something is drawing this session for a person.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    personSeen = true
+    return next(e)
+  })
+
   on('prompt.submit', async ($, e, next) => {
+    const kind = e.origin && e.origin.kind
+    if (kind === 'composer' || kind === 'bridge' || (kind === 'plugin' && e.origin.asUser)) personSeen = true
     if ((await isAppCall($)) || !(await findAcafRoot($))) return next(e)
     const notes = [ROUTE_NOTE]
     if (isFromPerson(e) && !isLoopCommand(e.text) && (await isCorrection($, e.text))) notes.push(LESSON_NOTE)

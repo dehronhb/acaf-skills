@@ -581,17 +581,41 @@ async function sendOption($, text) {
   }
 }
 
-// True for another program's own call to Claude (`claude -p` or the Agent SDK, with no screen attached), such as
-// the debate app's judging calls on the user's plan. Nobody is at that prompt, so this mod's notes and checks
-// would only rewrite that program's prompts and add a model call to each one (seen 2026-10-22: habit
-// reminders attached to the app's "PARENT CLAIM" prompts). The Desktop app and the terminal attach a screen,
-// so a person's session is never skipped. If the screen list can't be read, the mod runs as before.
+// True for another program's own call to Claude (`claude -p` or the Agent SDK), such as the debate app's judging
+// calls on the user's plan. Nobody is at that prompt, so this mod's notes and checks would only rewrite that
+// program's prompts and add a model call to each one (seen 2026-10-22: habit reminders attached to the app's
+// "PARENT CLAIM" prompts).
+// A person's session must never be skipped. The screen list alone is not enough: a Desktop session the user
+// is not looking at can report no screen (2026-10-23: the panel and the done check went missing that way). So
+// any sign of a person (a screen at any moment, the panel or a message being drawn, a typed message, an
+// interactive start) marks the session as theirs for good, and only a session that has shown none of these
+// and has no screen right now counts as a program's call. Environment variables can't tell them apart: a
+// `claude -p` started inside a Desktop session inherits CLAUDE_CODE_ENTRYPOINT=claude-desktop.
+let personSeen = false
 async function isAppCall($) {
+  if (personSeen) return false
   try {
-    return (await $.session.surfaces()).length === 0
+    if ((await $.session.surfaces()).length) {
+      personSeen = true
+      return false
+    }
+    return true
   } catch {
     return false
   }
+}
+// A finished reply the mod held back because the session looked like a program's call; checked and summarized
+// as soon as a sign of a person shows up (see the render hooks).
+let heldAnswer = ''
+function personArrived($) {
+  if (personSeen) return
+  personSeen = true
+  if (!heldAnswer) return
+  const answer = heldAnswer
+  heldAnswer = ''
+  lastAnswer = answer
+  $.clock.after(0, () => doneCheck($, answer))
+  $.clock.after(0, () => summarize($, answer))
 }
 
 export function register(on) {
@@ -605,9 +629,19 @@ export function register(on) {
     return next(e)
   })
 
+  // A terminal session starts interactive: a person is there from the start.
+  on('session.start', async ($, e, next) => {
+    if (e.isInteractive) personSeen = true
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId || e.isAborted || !e.answer || !e.answer.trim() || (await isAppCall($))) return result
+    if (e.agentId || e.isAborted || !e.answer || !e.answer.trim()) return result
+    if (await isAppCall($)) {
+      heldAnswer = e.answer // checked and summarized if a person turns up (personArrived)
+      return result
+    }
     const answer = e.answer
     lastAnswer = answer
     if (replyAnswersCheck) {
@@ -628,6 +662,7 @@ export function register(on) {
     const kind = e.origin && e.origin.kind
     const fromPerson =
       !kind || ['composer', 'bridge', 'sdk', 'unclassified'].includes(kind) || (kind === 'plugin' && e.origin.asUser)
+    if (['composer', 'bridge'].includes(kind) || (kind === 'plugin' && e.origin.asUser)) personArrived($)
     if (!fromPerson || !e.text || !e.text.trim() || isCompactionSummary(e.text) || (await isAppCall($))) return next(e)
     lastPersonAt = await nowMs($)
     lastNudgeAt = 0
@@ -718,6 +753,7 @@ export function register(on) {
   // message in the user's place. Draw it as one short grey line instead, so it isn't mistaken for something
   // the user typed. The full text still shows in the expanded transcript view (ctrl+o).
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    personArrived($) // something is drawing this session for a person
     const p = e.props || {}
     const o = p.origin || {}
     const text = String(p.text || '')
@@ -732,6 +768,7 @@ export function register(on) {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    personArrived($) // something is drawing this session for a person
     if (e.props && e.props.isWorking) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     if (doneNotice) {
