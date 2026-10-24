@@ -1,6 +1,6 @@
 ---
 name: acaf-grill
-description: "Ask the user first: before building or changing anything the user (or the people they build for) will see or use, ask the questions only they can answer about the experience they expect, as multiple-choice questions with your pick first, and build only once those choices are settled. One round for a change to something that exists; round by round for something new. Use when a request adds or changes a screen, a page, a flow, navigation, what players, friends or customers see, who has to sign in, or how the user will try it out, and the request leaves those choices open. Also when the user says \"grill me\" or \"ask me first\". Skip it for a fix whose right behavior is obvious, for work the user won't see, and when the request already settles the choices."
+description: "Ask the user first: before building or changing anything the user (or the people they build for) will see or use, ask the questions only they can answer about the experience they expect, as multiple-choice questions with your pick first, and build only once those choices are settled. One round for a change to something that exists; round by round for something new, starting with the bar (how impressive it should be, and a reference the user loves). Use when a request adds or changes a screen, a page, a flow, navigation, what players, friends or customers see, who has to sign in, or how the user will try it out, and the request leaves those choices open. Also when the user says \"grill me\" or \"ask me first\". Skip it for a fix whose right behavior is obvious, for work the user won't see, and when the request already settles the choices."
 ---
 
 # ACAF Grill: ask about the experience before building it
@@ -26,6 +26,13 @@ leaves choices about that open. Look for choices in:
 - **What they do:** where they start, what they click, what happens next, how they get back.
 - **Who:** who uses it, who has to sign in or set anything up (friends, players, customers, only the user).
 - **How they'll try it:** how the user will test it before real people use it.
+- **The bar:** how impressive it should be, and a reference they love. This sets everything else, and agents
+  guess it low. *Real case:* website stories built as a tidy slideshow with narration, when the user wanted
+  "something that would win website awards", with characters moving through the story. Ask it as: "How far
+  should this go? (a) a working draft to react to, (b) polished, like <something they already approved>,
+  (c) showcase level, like <a known example of the kind>", plus "Is there one you love that I should match or
+  beat?" Ask it in the first round of anything new, and for a change when the change is to how something looks
+  or feels.
 - **How big real use is** (how many people, how often, how much), only when the answer would change how much to
   build (habit 9). Not a standing question for every round.
 
@@ -65,6 +72,13 @@ starts at his first card; your answers show on the DM page as 'DM test'"). Then 
 for another yes, unless an answer turned the work into a costly fork (then `acaf-direction`). This covers
 building only: anything hard to undo or that other people will see (putting it live, sending a message,
 merging) still waits for the user's yes, as always.
+
+**A promise to show first is a stop.** If you told the user you'd show a sample before making the rest (a few
+pictures before a batch, one page before the others, a draft before the build), make only the sample, show it
+(link and open it beside the chat), and wait for their answer before making more. *Real case:* "I thought you
+were going to ask me for my opinion on them first before you created images for all the other classes?" Doing
+the rest while you wait wastes their money if the sample was wrong, and breaks their trust in what you say
+you'll do.
 
 On an ACAF project, record the answers where the work's other decisions live: the initiative's decision record
 when planning, or a line in the slice notes mid-build. That way a later session doesn't ask again or guess
