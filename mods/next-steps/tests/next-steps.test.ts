@@ -236,7 +236,8 @@ test('an untested "fixed" claim sends the agent back to check, and the panel say
   expect(sent[0]).toContain('the login bug is fixed')
   expect(sent[0]).toContain('NOT from the user')
   expect(sent[0]).toContain('The automatic done check asked me to')
-  expect(sent[0]).toContain('give your last reply again in full')
+  expect(sent[0]).toContain("Don't repeat the rest of your last reply")
+  expect(sent[0]).toContain('technical product manager')
   const ui = await $.ui.mount(BAND('desktop'))
   expect(await ui.find({ type: 'Text', text: /Checking: the agent said "the login bug is fixed"/ })).toBeDefined()
 })
@@ -485,6 +486,21 @@ test('every 25 pictures since the last condensing, the agent gets the pictures r
   await $.session.compact({ messages: [{ role: 'user', text: 'a', toolUses: [] }] })
   const after = await $.classic.PostToolUse(shot)
   expect((after && after.additionalContext) || []).toEqual([])
+})
+
+test('a huge step result gets the big-output reminder once; small results and picture data do not count', async ($, on) => {
+  on('classic.PostToolUse', () => ({}))
+  const small = { tool_name: 'Bash', tool_input: { command: 'ls' }, tool_response: { stdout: 'a\nb\n' } }
+  const picture = { tool_name: 'Read', tool_input: { file_path: '/a.png' }, tool_response: { type: 'image', file: { base64: 'x'.repeat(200000) } } }
+  const big = { tool_name: 'Bash', tool_input: { command: 'cat big.log' }, tool_response: { stdout: 'line\n'.repeat(30000) } }
+
+  const notes = async (step) => (((await $.classic.PostToolUse(step)) || {}).additionalContext || []).filter((n: string) => n.includes('Big output check'))
+  expect(await notes(small)).toEqual([])
+  expect(await notes(picture)).toEqual([])
+  const first = await notes(big)
+  expect(first.length).toBe(1)
+  expect(first[0]).toContain('about 45,000 tokens')
+  expect(await notes(big)).toEqual([])
 })
 
 test('edits to non-code files, or code with no sign of judging, cost nothing', async ($, on) => {

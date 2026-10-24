@@ -226,6 +226,20 @@ const promptFiles = new Set()
 const PICTURES_STEP = 25
 let picturesSinceCondense = 0
 let picturesNoted = 0
+
+// The big-output reminder (the user, 2026-10-24), for the same reason as pictures: one step that drops a huge
+// result into the conversation (a whole log, a giant file, a long command output) is re-read on every later
+// step. Past BIG_OUTPUT_TOKENS (estimated as characters / 4, pictures left out), the agent is reminded once
+// per stretch between condensings. Framed as memory, never cost.
+const BIG_OUTPUT_TOKENS = 20000
+let bigOutputNoted = false
+const BIG_OUTPUT_NOTE = (tool, tokens) =>
+  'Big output check (from the next-steps mod, not the user): that ' + tool + ' result put about ' +
+  Math.round(tokens / 1000) + ',000 tokens into this conversation, and it is re-read on every later step, which ' +
+  'fills the conversation and forces condensing sooner; after that you work from a summary and forget details, ' +
+  "sometimes the user's own words. From here: send big outputs to a file and read only the part you need (search " +
+  'it, or read a range of lines); give long reading (whole logs, large files, many pages) to a helper agent that ' +
+  'reports back what matters. Read in full whatever the task really needs. Carry on with your task.'
 const PICTURES_NOTE = (n) =>
   'Pictures check (from the next-steps mod, not the user): about ' + n + ' pictures are in this conversation since ' +
   'it last condensed. Each one stays in your memory and is re-read on every step, which fills the conversation and ' +
@@ -486,17 +500,23 @@ async function doneCheck($, answer) {
       notice = { kind: 'habit', label: broken }
     }
     // Frame the message so the agent can't take it for the user's words. The agent's answer becomes the last
-    // message in the chat, the one the user reads; an answer about the check alone would push the reply that
-    // mattered out of view (the user, 2026-10-20). So the answer is the whole reply again, corrected, with the
-    // check named in one line at the top. Not a recap: everything the user needed from the original reply.
+    // message in the chat, the one the user reads. What the user needs there is what the check found and their
+    // next options, so they never scroll up for them (the user, 2026-10-20). It is NOT a repeat of the whole last
+    // reply: that made every checked reply appear twice (the user, 2026-10-24). Details go in a file, linked.
     const label = needsCheck ? 'done check' : 'habit check'
     text =
       '[Automatic ' + label + ' from the next-steps mod. This message is NOT from the user, who did not write or ' +
-      'see it.]\n\n' + text + '\n\nYour answer replaces your last reply as the message the user reads, and they ' +
-      'will not scroll up. So: start with one line, "The automatic ' + label + ' asked me to …", and what you ' +
-      'found or changed. Then give your last reply again in full, corrected where the check changed anything: ' +
-      'everything the user needs to know, what happens next, and any question for them, ending with that. If ' +
-      'your last reply had nothing for the user beyond a summary, keep it as short as it was.'
+      'see it.]\n\n' + text + '\n\nYour answer becomes the last message the user reads, so write it for them, short:\n' +
+      '1. One line: "The automatic ' + label + ' asked me to …", and what you found or changed.\n' +
+      '2. If the check changed anything the user was told (a result, a number, a claim), say the corrected fact in ' +
+      'a line or two. Don\'t repeat the rest of your last reply; it is still on screen above.\n' +
+      '3. End with what the user can do next, if they have a choice: each option with what it gets them, what it ' +
+      'costs (money, time, risk) and your pick, written for a technical product manager (outcomes and trade-offs, ' +
+      'not code or engineering detail). If your last reply already asked them something, give that question and ' +
+      'its options again here, updated, so they don\'t have to scroll up for it. If there is no choice, say ' +
+      'what happens next in one line.\n' +
+      'Longer findings (logs, measurements, file lists) go in a file in the project or session folder, linked in ' +
+      'one line, not in the message.'
     lastAnswer = '' // the summary for this reply is now out of date: the agent is about to act on the check
     summary = null
     replyAnswersCheck = true
@@ -653,6 +673,7 @@ export function register(on) {
     const result = await next(e)
     if (!result || !result.skip) {
       picturesSinceCondense = 0
+      bigOutputNoted = false
       picturesNoted = 0
     }
     return result
@@ -724,7 +745,15 @@ export function register(on) {
     const promptCheck = await promptNote($, e.tool_name, e.tool_input)
     if (promptCheck) notes.push(promptCheck)
     // Count the pictures this step put into the conversation (a picture is an "image" part of the result).
-    picturesSinceCondense += (JSON.stringify(e.tool_response || '').match(/"type"\s*:\s*"image"/g) || []).length
+    const response = JSON.stringify(e.tool_response || '')
+    picturesSinceCondense += (response.match(/"type"\s*:\s*"image"/g) || []).length
+    // The result's size in tokens, estimated, with picture data left out (pictures are counted above).
+    const outputTokens = response.replace(/"(data|base64)"\s*:\s*"[^"]{200,}"/g, '""').length / 4
+    if (!bigOutputNoted && outputTokens > BIG_OUTPUT_TOKENS) {
+      bigOutputNoted = true
+      await debugLog($, 'big output check: ' + e.tool_name + ' result about ' + Math.round(outputTokens) + ' tokens')
+      notes.push(BIG_OUTPUT_NOTE(e.tool_name, outputTokens))
+    }
     if (picturesSinceCondense - picturesNoted >= PICTURES_STEP) {
       picturesNoted = picturesSinceCondense
       await debugLog($, 'pictures check: ' + picturesSinceCondense + ' pictures since the last condensing')
