@@ -215,6 +215,25 @@ let replyAnswersCheck = false
 const judgedFiles = new Set()
 // Files the prompt catch has already spoken about this session.
 const promptFiles = new Set()
+
+// Picture discipline (the user, 2026-10-24). Every picture an agent looks at stays in its conversation and is
+// re-read on every later step. Re-reading the conversation is 80-90% of a session's cost, and a pile of pictures
+// forces condensing every 15-20 minutes, after which the agent forgets details, sometimes the user's own words.
+// Measured: one session took in 331 pictures and condensed 35 times in a day and a half. So every PICTURES_STEP
+// pictures since the last condensing, the agent gets a reminder to keep pictures out of its main conversation.
+// Framed as memory, never as money: cost talk makes agents cut corners on quality, which the user does not want.
+// Pictures a helper agent looks at don't count: that is the habit working.
+const PICTURES_STEP = 25
+let picturesSinceCondense = 0
+let picturesNoted = 0
+const PICTURES_NOTE = (n) =>
+  'Pictures check (from the next-steps mod, not the user): about ' + n + ' pictures are in this conversation since ' +
+  'it last condensed. Each one stays in your memory and is re-read on every step, which fills the conversation and ' +
+  'forces condensing; after that you work from a summary and forget details, sometimes the user\'s own words. From ' +
+  'here: compare frames side by side on one contact sheet instead of many screenshots; use a smaller screenshot ' +
+  '(the screenshot tool\'s scale, such as 0.5) when only checking layout, and read text with get_page_text instead ' +
+  'of a screenshot; hand frame-by-frame reviews to a helper agent, giving it the user\'s exact feedback and what to ' +
+  'look for. Still look at the final result yourself, full size, before handing it over. Carry on with your task.'
 // The gut check: when the user last spoke (ms, 0 = not yet seen) and when the agent was last nudged.
 let lastPersonAt = 0
 let lastNudgeAt = 0
@@ -629,6 +648,16 @@ export function register(on) {
     return next(e)
   })
 
+  // A condensing empties the conversation of its pictures, so the picture count starts again.
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (!result || !result.skip) {
+      picturesSinceCondense = 0
+      picturesNoted = 0
+    }
+    return result
+  })
+
   // A terminal session starts interactive: a person is there from the start.
   on('session.start', async ($, e, next) => {
     if (e.isInteractive) personSeen = true
@@ -694,6 +723,13 @@ export function register(on) {
     if (codeNote) notes.push(codeNote)
     const promptCheck = await promptNote($, e.tool_name, e.tool_input)
     if (promptCheck) notes.push(promptCheck)
+    // Count the pictures this step put into the conversation (a picture is an "image" part of the result).
+    picturesSinceCondense += (JSON.stringify(e.tool_response || '').match(/"type"\s*:\s*"image"/g) || []).length
+    if (picturesSinceCondense - picturesNoted >= PICTURES_STEP) {
+      picturesNoted = picturesSinceCondense
+      await debugLog($, 'pictures check: ' + picturesSinceCondense + ' pictures since the last condensing')
+      notes.push(PICTURES_NOTE(picturesSinceCondense))
+    }
     const now = await nowMs($)
     if (now && !lastPersonAt) lastPersonAt = now // start counting from the first action after a (re)load
     if (now && now - Math.max(lastPersonAt, lastNudgeAt) >= GUT_CHECK_MS) {

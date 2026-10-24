@@ -469,6 +469,24 @@ test('instructions another model reads get the acaf-prompt pointer, once per fil
   expect(calls).toBe(before)
 })
 
+test('every 25 pictures since the last condensing, the agent gets the pictures reminder; a condensing resets it', async ($, on) => {
+  on('classic.PostToolUse', () => ({}))
+  on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }))
+  const shot = { tool_name: 'mcp__Claude_Browser__computer', tool_input: { action: 'screenshot' }, tool_response: [{ type: 'image', source: { data: 'x' } }] }
+
+  const notes: string[] = []
+  for (let i = 0; i < 26; i++) {
+    const r = await $.classic.PostToolUse(shot)
+    notes.push(...((r && r.additionalContext) || []))
+  }
+  expect(notes.filter((n) => n.includes('Pictures check')).length).toBe(1)
+  expect(notes[0]).toContain('about 25 pictures')
+
+  await $.session.compact({ messages: [{ role: 'user', text: 'a', toolUses: [] }] })
+  const after = await $.classic.PostToolUse(shot)
+  expect((after && after.additionalContext) || []).toEqual([])
+})
+
 test('edits to non-code files, or code with no sign of judging, cost nothing', async ($, on) => {
   let calls = 0
   on('classic.PostToolUse', () => ({}))
