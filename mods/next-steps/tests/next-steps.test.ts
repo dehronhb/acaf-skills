@@ -534,6 +534,100 @@ test('after 30 minutes without the user, the agent is asked once to gut-check pr
   expect(right_after.additionalContext).toBeUndefined()
 })
 
+// Steps every 5 minutes for the given minutes; returns the notes they got back.
+async function work($, clock, minutes: number) {
+  const notes: string[] = []
+  for (let m = 0; m < minutes; m += 5) {
+    await clock.advance(5 * 60 * 1000)
+    const r = await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: { command: 'run the gate', description: 'Run the pool gate' } })
+    notes.push(...((r && r.additionalContext) || []))
+    await clock.advance(0)
+  }
+  return notes
+}
+
+function stubJudge(on, verdicts: string[], seen: { calls: any[] }) {
+  on('session.messages', () => ({ value: [{ role: 'assistant', text: 'Gate run 4: 60 of 62 green.', toolUses: [] }] }))
+  on('model.complete', ($, e) => {
+    seen.calls.push(e)
+    const verdict = verdicts[Math.min(seen.calls.length - 1, verdicts.length - 1)]
+    return { value: { isAnswered: true, text: JSON.stringify({ seen: 'the east-ramp pause again', verdict, why: 'the same east-ramp pause for 4 hours' }), usage: USAGE } }
+  })
+}
+
+test('after two hours of work an outside judge looks; circling sends the agent the stop-and-offer-options note', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  on('classic.PostToolUse', () => ({}))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  const seen = { calls: [] as any[] }
+  stubJudge(on, ['circling'], seen)
+
+  await $.prompt.submit({ text: 'Get the swim fix ready for me to test.', wait: false, origin: { kind: 'composer' } })
+  const first = await work($, clock, 115)
+  expect(seen.calls.length).toBe(0)
+  const notes = [...first, ...(await work($, clock, 15))].filter((n) => n.includes('Struggle check'))
+  expect(seen.calls.length).toBe(1)
+  expect(seen.calls[0].model).toBe('sonnet')
+  expect(seen.calls[0].prompt).toContain('user: Get the swim fix ready for me to test.')
+  expect(seen.calls[0].prompt).toContain('Bash: Run the pool gate')
+  expect(seen.calls[0].prompt).toContain('Gate run 4: 60 of 62 green.')
+  expect(notes.length).toBe(1)
+  expect(notes[0]).toContain('the same east-ramp pause for 4 hours')
+  expect(notes[0]).toContain('a helper agent spikes the other approaches')
+  expect(notes[0]).not.toContain('mistaken')
+})
+
+test('progress says nothing to the agent; idle hours do not count as work; a user message does not reset the clock', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  on('classic.PostToolUse', () => ({}))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  const seen = { calls: [] as any[] }
+  stubJudge(on, ['progress'], seen)
+
+  await work($, clock, 60)
+  await clock.advance(6 * 60 * 60 * 1000) // the agent sat idle
+  await work($, clock, 30)
+  expect(seen.calls.length).toBe(0)
+  await $.prompt.submit({ text: 'He still swims sideways.', wait: false, origin: { kind: 'composer' } })
+  const notes = await work($, clock, 40)
+  expect(seen.calls.length).toBe(1)
+  expect(seen.calls[0].prompt).toContain('user: He still swims sideways.')
+  expect(notes.filter((n) => n.includes('Struggle check'))).toEqual([])
+})
+
+test('two unsure verdicts in a row count as circling, and the second look comes sooner', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  on('classic.PostToolUse', () => ({}))
+  const seen = { calls: [] as any[] }
+  stubJudge(on, ['unsure', 'unsure'], seen)
+
+  const notes = (await work($, clock, 195)).filter((n) => n.includes('Struggle check'))
+  expect(seen.calls.length).toBe(2)
+  expect(seen.calls[1].prompt).toContain(': unsure. the east-ramp pause again')
+  expect(notes.length).toBe(1)
+})
+
+test('after a condensing, an agent two hours or more past the user is told how long it has worked', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  on('classic.PostToolUse', () => ({}))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }))
+  const step = { tool_name: 'Bash', tool_input: { command: 'ls' } }
+  const timeNotes = async () => (((await $.classic.PostToolUse(step)) || {}).additionalContext || []).filter((n: string) => n.includes('Time check'))
+
+  await $.prompt.submit({ text: 'Fix the swim.', wait: false, origin: { kind: 'composer' } })
+  await clock.advance(90 * 60 * 1000)
+  await $.session.compact({ messages: [{ role: 'assistant', text: 'Working on the swim.', toolUses: [] }] })
+  expect(await timeNotes()).toEqual([])
+  await clock.advance(3 * 60 * 60 * 1000)
+  await $.session.compact({ messages: [{ role: 'assistant', text: 'Still on the swim.', toolUses: [] }] })
+  const notes = await timeNotes()
+  expect(notes.length).toBe(1)
+  expect(notes[0]).toContain('about 4.5 hours')
+  expect(notes[0]).toContain('condensed 2 times')
+  expect(await timeNotes()).toEqual([])
+})
+
 const ROW = (text: string, origin: object, isExpanded = false) => ({
   plugin: 'next-steps',
   component: 'UserMessage',

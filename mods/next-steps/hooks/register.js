@@ -248,6 +248,178 @@ const PICTURES_NOTE = (n) =>
   '(the screenshot tool\'s scale, such as 0.5) when only checking layout, and read text with get_page_text instead ' +
   'of a screenshot; hand frame-by-frame reviews to a helper agent, giving it the user\'s exact feedback and what to ' +
   'look for. Still look at the final result yourself, full size, before handing it over. Carry on with your task.'
+// The struggle check (the user, 2026-10-25). An agent spent days on a path that wasn't working and never said so:
+// about 31 hours of mostly green checks on a route planner, a third of it spent on faults in its own tests and
+// 86-minute builds, while a faster route (C++) sat unasked. The user's rules already said to stop (habit 1: about
+// twice as long as expected; habit 7: two failed tries), and a 30-minute self-check note (the gut check below)
+// fired the whole time, but none of it worked, for three reasons: the agent can't feel time pass (its memory was
+// condensed 69 times in two days, and each summary only knows the current step); every step "worked", so nothing
+// counted as a failed try; and it judged itself ("at the expected pace, carry on"). So this check is an outside
+// judge: after every STRUGGLE_EVERY_MS of work (time between steps, capped so idle hours don't count), Sonnet reads
+// the last STRUGGLE_LOOK_MS of the work log (the user's messages and the agent's steps and messages) and its own
+// earlier verdicts, and says whether the work is getting closer to what the user asked for or going in circles.
+// Circling sends the agent a note to stop and tell the user, with options including a spike by a helper agent.
+// It does NOT reset when the user speaks: a day of user fault reports, each answered by a patch, is circling too
+// (the vine-wall day, 2026-10-17). Replayed on that session's history (2026-10-25): it flagged the vine-wall day
+// in all 3 runs, about 2 hours before the user complained, and the planner's test-chasing stretch in 2 of 2
+// continuous runs; it passed 4 of 4 checks of normal work in another session. Never framed as cost.
+const STRUGGLE_EVERY_MS = 2 * 60 * 60 * 1000
+const STRUGGLE_UNSURE_MS = 60 * 60 * 1000 // after an "unsure", look again sooner; two in a row count as circling
+const STRUGGLE_LOOK_MS = 8 * 60 * 60 * 1000
+const STRUGGLE_HISTORY_MS = 48 * 60 * 60 * 1000
+const STEP_GAP_CAP_MS = 10 * 60 * 1000 // a gap between steps longer than this is idle time, counted as this much
+// The work log: { at, line } for each of the agent's steps and the user's messages; the agent's own messages,
+// gathered at each condensing and at check time; earlier verdicts; and the start of the latest condensed summary.
+let workLog = []
+let agentNotes = []
+const seenAgentTexts = new Set()
+let struggleChecks = []
+let workedSinceCheck = 0
+let lastStepAt = 0
+let struggleRunning = false
+let unsureInARow = 0
+let pendingStruggleNote = ''
+let latestCondensing = ''
+// The time check: after a condensing, the agent is told how long it has worked since the user spoke, because the
+// summary it now works from doesn't say.
+let condensingsSincePerson = 0
+let timeNoteDue = false
+// Shorter stretches don't get it: on normal work at 1.4 hours, Opus read the note as "you ran long" and paused to
+// offer options it didn't need (tested 2026-10-25).
+const TIME_NOTE_MS = 2 * 60 * 60 * 1000
+
+const STRUGGLE_SYSTEM = [
+  'You check on an AI coding agent while it works, for a user who is often away for hours and relies on the agent to notice when it is stuck. Twice, an agent spent a day or more on a path that wasn\'t working and never stopped to say so; the user would rather have heard "this is taking longer than it should; can I step back and look at other ways?" Your answer decides whether the agent is asked to stop and tell the user that. You read its recent work: the user\'s messages, the agent\'s steps and messages, and a summary of its earlier work.',
+  '',
+  'Decide whether the work is still getting closer to what the user asked for, or is going in circles.',
+  '',
+  'Circling looks like:',
+  '- the same problem, or the same few faults, worked on again and again in new forms;',
+  '- failures blamed on the test, the tools or the setup, then fixed, then new ones of the same kind;',
+  '- most of the time going into tests, measuring tools, rebuilds, restarts, fighting the tools or writing notes, rather than into what the user will see or use;',
+  '- the user reporting the same kind of fault after each round of fixes;',
+  '- the same open item named in two or more of the earlier checks, without clearly narrowing;',
+  '- a plan or estimate run well past (about twice) with the end not in sight;',
+  '- a known way out (a different tool or approach, or an earlier "revisit if..." note that has now come true) not taken and not put to the user.',
+  '',
+  'Progress looks like:',
+  '- what the user will see or use getting closer to done: things working that didn\'t, and staying fixed;',
+  '- a study or investigation narrowing down the options and producing findings, even before anything is built;',
+  '- steady work through an agreed plan at roughly the planned pace.',
+  '',
+  'Look at the whole effort, not only the latest hours: the earlier checks show how long this goal has been running and what was still open at each one. Long is not circling by itself: a big job can take a day. Judge the direction, but the more hours have gone by, the more the work should show for them. The agent\'s own reports of success ("15 of 15 green", "gate passed") are not progress by themselves; ask whether the user\'s goal is closer.',
+  '',
+  'If the record is too thin to tell, answer unsure.',
+  '',
+  'Reply with JSON only, keys in this order:',
+  '{"seen": "<the few facts from the record your verdict rests on, in a sentence or two>", "verdict": "progress" or "circling" or "unsure", "why": "<if circling or unsure: one or two plain sentences to the agent naming what keeps going round and roughly how long it has taken; otherwise empty>"}',
+].join('\n')
+
+// No "if this check is mistaken, carry on" here, on purpose: the agent judging itself is what failed.
+const STRUGGLE_NOTE = (why, hours) =>
+  'Struggle check (from the next-steps mod, not the user): an outside reviewer read your last several hours of ' +
+  'work and judged that it is going in circles. ' + (why ? 'What it saw: ' + why + ' ' : '') +
+  'Stop at the next safe point (let a running build or test finish, or stop it cleanly; leave nothing half-done) ' +
+  'and write the user a short message:\n' +
+  '1. What is taking longer than it should: about ' + hours + ' hours of work since the user last spoke, against ' +
+  'what you expected.\n' +
+  '2. Why, in plain words: what keeps going round.\n' +
+  '3. Options, your pick first, each with what it gets them and what it costs in time, money and risk: (a) keep ' +
+  'going, and what makes the next round different; (b) pause and spike: try other approaches small and fast, ' +
+  'then report; (c) a helper agent spikes the other approaches while you keep working (on an ACAF project, the ' +
+  'spike is the acaf-explore study).\n' +
+  "A helper's spike is cheap and easy to undo, so don't wait for an answer to start it: start (c) now (the helper " +
+  'researches and tries alternatives in a scratch copy, touching nothing the user has and spending no money), ' +
+  'keep working, and when it reports back, end your turn with what it found and the options again. Anything ' +
+  'costly or hard to undo (an install, a purchase, deleting, switching the approach for real) waits for the ' +
+  "user's yes. If you already told the user about this and they chose to keep going, or a spike on it is already " +
+  'running, tell them only what changed, and carry on.'
+
+const TIME_NOTE = (hours, condensings, since) =>
+  'Time check (from the next-steps mod, not the user): your conversation was just condensed. You have worked about ' +
+  hours + ' hours since the user last spoke (at ' + since + '), and your memory has been condensed ' + condensings +
+  ' time' + (condensings === 1 ? '' : 's') + ' in that stretch, so the summary you work from does not show how long ' +
+  'this has taken. Compare it with what you expected this to take, or told the user. Only if it has clearly run ' +
+  'past that (about twice as long), stop and tell the user in two lines what grew, with the quick version beside ' +
+  "the thorough one (the user's habit 1). If it hasn't, or you had no estimate and the work is going as you'd " +
+  'expect, say nothing about this to the user and carry on.'
+
+// "10-25 15:42" in the machine's local time.
+function stamp(ms) {
+  const d = new Date(ms)
+  const two = (n) => String(n).padStart(2, '0')
+  return two(d.getMonth() + 1) + '-' + two(d.getDate()) + ' ' + two(d.getHours()) + ':' + two(d.getMinutes())
+}
+
+function hoursText(ms) {
+  return (Math.round((ms / 3600000) * 10) / 10).toFixed(1)
+}
+
+// Keeps the agent's own messages from a list of conversation messages, once each.
+function gatherAgentNotes(messages, at) {
+  for (const m of messages || []) {
+    if (m.role !== 'assistant' || !m.text || !m.text.trim()) continue
+    const key = m.text.slice(0, 200)
+    if (seenAgentTexts.has(key)) continue
+    if (seenAgentTexts.size > 3000) seenAgentTexts.clear()
+    seenAgentTexts.add(key)
+    agentNotes.push({ at, text: m.text.replace(/\s+/g, ' ').slice(0, 800) })
+  }
+}
+
+// The judge's input: what happened in the last STRUGGLE_LOOK_MS, oldest first, and the earlier verdicts.
+function strugglePrompt(at) {
+  const look = workLog.filter((x) => x.at >= at - STRUGGLE_LOOK_MS)
+  const start = look.length ? look[0].at : at
+  let p =
+    'Hours of work looked at: about ' + hoursText(at - start) + ' (from ' + stamp(start) + ' to ' + stamp(at) + '). ' +
+    'The user last spoke ' + hoursText(at - lastPersonAt) + ' hours ago.' +
+    (struggleChecks.length
+      ? ' The earlier checks below go back ' + hoursText(at - struggleChecks[0].at) + ' hours (to ' + stamp(struggleChecks[0].at) + ').'
+      : '') + '\n\n'
+  if (latestCondensing) p += "Summary of earlier work, from the agent's latest condensing (cut to its start):\n" + latestCondensing + '\n\n'
+  p +=
+    'Earlier checks in this stretch:\n' +
+    (struggleChecks.length ? struggleChecks.map((c) => '- ' + stamp(c.at) + ': ' + c.verdict + '. ' + c.seen).join('\n') : '(none)') +
+    '\n\n'
+  p +=
+    'What happened, oldest first ("user:" lines are the user\'s own messages; the rest are the agent\'s steps):\n' +
+    clip(look.map((x) => x.line).join('\n'), 24000) + '\n\n'
+  const notes = agentNotes.filter((x) => x.at >= at - STRUGGLE_LOOK_MS).map((x) => x.text)
+  p += "The agent's own messages, oldest first:\n" + clip(notes.join('\n---\n'), 12000)
+  return p + '\n\nJudge it; do not continue the work. Reply with the JSON only.'
+}
+
+// Runs the outside judge once; a circling verdict leaves a note for the agent's next step. Never throws.
+async function struggleCheck($, at) {
+  try {
+    gatherAgentNotes(await $.session.messages(), at)
+    agentNotes = agentNotes.filter((x) => x.at >= at - STRUGGLE_LOOK_MS)
+    const reply = await $.model.complete({
+      model: 'sonnet',
+      effort: 'low',
+      system: STRUGGLE_SYSTEM,
+      prompt: strugglePrompt(at),
+      maxTokens: 400,
+      timeoutMs: 45000,
+    })
+    const v = parseJson(replyText(reply)) || {}
+    const verdict = ['progress', 'circling', 'unsure'].includes(v.verdict) ? v.verdict : 'unsure'
+    const seen = typeof v.seen === 'string' ? v.seen.trim().slice(0, 400) : ''
+    const why = typeof v.why === 'string' ? v.why.trim().slice(0, 600) : ''
+    struggleChecks = [...struggleChecks.filter((c) => c.at >= at - STRUGGLE_HISTORY_MS), { at, verdict, seen }].slice(-12)
+    const tokens = reply && reply.usage ? reply.usage.input_tokens + (reply.usage.cache_read_input_tokens || 0) : '?'
+    await debugLog($, 'struggle check: ' + verdict + ' (' + tokens + ' tokens in): ' + seen + (why ? ' | ' + why : ''))
+    const flagged = verdict === 'circling' || (verdict === 'unsure' && unsureInARow >= 1)
+    unsureInARow = verdict === 'unsure' && !flagged ? unsureInARow + 1 : 0
+    if (flagged) pendingStruggleNote = STRUGGLE_NOTE(why, hoursText(at - lastPersonAt))
+  } catch {
+    // A failed check never blocks the session.
+  } finally {
+    struggleRunning = false
+  }
+}
+
 // The gut check: when the user last spoke (ms, 0 = not yet seen) and when the agent was last nudged.
 let lastPersonAt = 0
 let lastNudgeAt = 0
@@ -669,12 +841,17 @@ export function register(on) {
   })
 
   // A condensing empties the conversation of its pictures, so the picture count starts again.
+  // It also loses the agent's own messages and its sense of how long it has worked: keep the messages for the
+  // struggle check, and tell the agent the time at its next step.
   on('session.compact', async ($, e, next) => {
+    gatherAgentNotes(e.messages, await nowMs($))
     const result = await next(e)
     if (!result || !result.skip) {
       picturesSinceCondense = 0
       bigOutputNoted = false
       picturesNoted = 0
+      condensingsSincePerson += 1
+      timeNoteDue = true
     }
     return result
   })
@@ -713,9 +890,12 @@ export function register(on) {
     const fromPerson =
       !kind || ['composer', 'bridge', 'sdk', 'unclassified'].includes(kind) || (kind === 'plugin' && e.origin.asUser)
     if (['composer', 'bridge'].includes(kind) || (kind === 'plugin' && e.origin.asUser)) personArrived($)
+    if (e.text && isCompactionSummary(e.text)) latestCondensing = e.text.slice(0, 5000)
     if (!fromPerson || !e.text || !e.text.trim() || isCompactionSummary(e.text) || (await isAppCall($))) return next(e)
     lastPersonAt = await nowMs($)
     lastNudgeAt = 0
+    condensingsSincePerson = 0
+    workLog.push({ at: lastPersonAt, line: stamp(lastPersonAt) + ' user: ' + e.text.replace(/\s+/g, ' ').slice(0, 800) })
     const habits = await loadHabits($)
     if (!habits.length) return next(e)
     const { picked, askFirst } = await pickHabits($, e.text, habits)
@@ -761,6 +941,32 @@ export function register(on) {
     }
     const now = await nowMs($)
     if (now && !lastPersonAt) lastPersonAt = now // start counting from the first action after a (re)load
+    if (now) {
+      // The time check, at the first step after a condensing.
+      if (timeNoteDue) {
+        timeNoteDue = false
+        if (now - lastPersonAt >= TIME_NOTE_MS) {
+          await debugLog($, 'time check: ' + hoursText(now - lastPersonAt) + ' h since the user, ' + condensingsSincePerson + ' condensing(s)')
+          notes.push(TIME_NOTE(hoursText(now - lastPersonAt), condensingsSincePerson, stamp(lastPersonAt)))
+        }
+      }
+      // The struggle check: log this step, deliver a finished verdict's note, and start a check when one is due.
+      const input = e.tool_input || {}
+      const what = input.description || input.command || input.file_path || input.url || input.prompt || input.action || ''
+      workLog.push({ at: now, line: stamp(now) + ' ' + String(e.tool_name).split('__').pop() + ': ' + String(what).replace(/\s+/g, ' ').slice(0, 160) })
+      workLog = workLog.filter((x) => x.at >= now - STRUGGLE_LOOK_MS)
+      if (lastStepAt) workedSinceCheck += Math.min(Math.max(now - lastStepAt, 0), STEP_GAP_CAP_MS)
+      lastStepAt = now
+      if (pendingStruggleNote) {
+        notes.push(pendingStruggleNote)
+        pendingStruggleNote = ''
+      }
+      if (!struggleRunning && workedSinceCheck >= (unsureInARow ? STRUGGLE_UNSURE_MS : STRUGGLE_EVERY_MS)) {
+        workedSinceCheck = 0
+        struggleRunning = true
+        $.clock.after(0, () => struggleCheck($, now))
+      }
+    }
     if (now && now - Math.max(lastPersonAt, lastNudgeAt) >= GUT_CHECK_MS) {
       lastNudgeAt = now
       const minutes = Math.round((now - lastPersonAt) / 60000)

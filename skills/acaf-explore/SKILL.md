@@ -1,6 +1,6 @@
 ---
 name: acaf-explore
-description: "The option study — when a challenge is new (no proven approach in the records) or the current approach has stopped getting better, stop building and study it the way a software architect reports to a product manager: enumerate every technical option regardless of cost, map each option's levers, TRY every option (turning its levers before calling it), and report quality, cost and trade-offs for each so the user chooses. Use when a problem has no proven approach, when an approach fails the goal twice or its results get worse, when you catch yourself adding machinery to rescue an approach, or when the user says \"what are our options / explore this / try everything\"."
+description: "The option study — when a challenge is new (no proven approach in the records) or the current approach has stopped getting better, stop building and study it the way a software architect reports to a product manager: enumerate every technical option regardless of cost, map each option's levers, TRY every option (turning its levers before calling it), and report quality, cost and trade-offs for each so the user chooses. Use when a problem has no proven approach, when an approach fails the goal twice or its results get worse, when the work runs well past its estimate while each step \"works\" (time going into tests, tools and rebuilds), when you catch yourself adding machinery to rescue an approach, or when the user says \"what are our options / explore this / try everything\"."
 ---
 
 # ACAF Explore — the option study (the architect's report)
@@ -20,6 +20,15 @@ The failure this prevents has three parts, and they compound:
 - **A new challenge:** the capability has no proven approach in the records (`functionality_index.md`, `decisions/`).
 - **An approach has failed the user's goal twice, or its results are getting WORSE** — even with every gate green.
 - **You notice you are building a fix for a fix** to keep an approach alive.
+- **The work runs well past what was expected while every step "works":** about twice the slice's planned size or
+  the estimate you gave; most of the time going into tests, measuring tools, rebuilds and restarts rather than what
+  the user will see; or a study's "revisit if…" condition has come true. Nothing fails here, so the trigger above
+  never fires; you have to look at the clock. *Real case:* a route planner took two days of green checks, a third
+  of the time spent on faults in the tests themselves and 86-minute builds, while C++ (set aside on 10-14 with
+  "revisit if the AI logic outgrows Blueprint") was never put to the user. Your condensed memory doesn't carry how
+  long you've been at it, so check the start time in the records; the next-steps mod's time and struggle checks
+  also send you here. The study can run as a helper agent's spike while you keep building; tell the user it is
+  running.
 - **The outcome is judged by quality or taste** (how something looks, reads or feels), where an approach's ceiling matters more than its cost.
 - The user asks: "what are our options", "explore this", "try everything".
 

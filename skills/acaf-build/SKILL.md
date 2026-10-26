@@ -24,6 +24,14 @@ Before touching anything, state the slice's expected writes from its definition 
 - **Fixing a reported problem** (a bug, a review finding, a piece of feedback): first ask what it's an example of. Search for every place the same pattern appears and fix them all, or fix the shared cause, and add a test that would catch the whole class. Fixing only the instance someone pointed at guarantees another round. If the siblings sit outside this slice's declared files, fix the instance, list the siblings, and fix them as obvious-fix commits after the slice or propose a slice for them.
 - **A fork mid-slice** (a new library or service, a paid call, a scope change, a deviation the user would notice, or an urge to say "I can't"): run `acaf-direction`. Cheap and certain choices are yours; unsure and costly ones go to the user. Before concluding you can't do something (run a build, use a tool, reach a service), really try, and look for a way.
 - **If the approach itself is failing the goal** (the results are not what the user needs, or are getting worse, even with every gate green), or two changes in a row that were meant to make the outcome meet the user's goal didn't (two prompt rewrites and the stories still don't sound like the child's world; not two tries at a type error, which is just debugging), or you catch yourself building a fix for a fix to keep it alive: stop. Record a `DEV-<n>` and run `acaf-explore` before another slice goes into that approach. Green gates on a worsening outcome are a failure, not progress.
+- **Watch the clock, not only the gates.** When you start a slice, write its start time and planned size in the
+  handoff note. Your condensed memory won't carry how long you've been at it, so read that time back rather than
+  trusting your sense of it. If the slice runs past about twice its size, or the time is going into tests, tools
+  and rebuilds rather than the slice's outcome, stop and tell the user in a few lines: what is taking long, why,
+  and the options, your pick first: (a) keep going, and what makes the next round different; (b) pause for a
+  spike (`acaf-explore`); (c) a helper agent spikes the alternatives while you keep building. A helper's spike is
+  cheap and easy to undo, so it can start before they answer; anything costly waits for their yes. *Not:* every
+  slow build. One long build is just slow; a day of them is the approach.
 
 ## Step 3 — the honest postcondition (the no-op rule)
 
