@@ -432,12 +432,13 @@ function clip(text, limit) {
   return text.length <= limit ? text : '...' + text.slice(text.length - limit)
 }
 
-// Keeps the last 200 lines of the done check's judgments in debug.log beside the mod. Never throws.
+// Keeps the last 2,000 lines of the checks' judgments in debug.log beside the mod, about two weeks of heavy use, so a
+// review can look back past the last day or two (200 lines held only about two days). Never throws.
 async function debugLog($, text) {
   try {
     const path = $.plugin.root + '/debug.log'
     const old = (await $.fs.exists(path)) ? await $.fs.read(path) : ''
-    const lines = (old + new Date().toISOString() + ' ' + text + '\n').split('\n').filter(Boolean).slice(-200)
+    const lines = (old + new Date().toISOString() + ' ' + text + '\n').split('\n').filter(Boolean).slice(-2000)
     await $.fs.write(path, lines.join('\n') + '\n')
   } catch {
     // Logging is best effort.

@@ -20,7 +20,18 @@ skill (questions in rounds, each with a recommended answer).
 ## Step 1: should you ask at all?
 
 Ask when the request adds or changes something the user, or the people they build for, will see or use, and it
-leaves choices about that open. Look for choices in:
+leaves choices about that open. Two things that count, though they are easy to miss:
+
+- **Screens the user or their staff use**, such as an admin portal, the DM's own tools or an internal dashboard,
+  not only what customers or players see. *Real case:* the customer-facing announcement pop-up was mocked up and
+  chosen, but the staff page for writing announcements was built without a question; it came back with audience
+  choices nobody wanted, no way to upload a picture, and a broken preview.
+- **A new screen inside an approved plan.** An approved feature or slice plan says what the screen must do, not
+  how it looks or flows. Show a mockup of each new screen and settle its choices before building it. *Real
+  case:* a DM's world screens built straight from an approved plan felt "like filling out a government form".
+  (Not: a mockup for every small change to a screen the user has already seen.)
+
+Look for choices in:
 
 - **What they see:** layout, wording, what's on the screen, and whether it should match screens they already approved.
 - **What they do:** where they start, what they click, what happens next, how they get back.
