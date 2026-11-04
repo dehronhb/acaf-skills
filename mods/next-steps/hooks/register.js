@@ -23,10 +23,13 @@
 //    contradicted by one, or unshown.
 //    - A contradicted claim (a failing test, an error, a different number) sends the agent back to
 //      check it now, before the user relies on it.
-//    - Unshown claims are listed in the panel as "Not checked: ...", with no message in the chat.
-//      Why the split (the user's choice, 2026-10-29): sending the agent back on every unshown claim
-//      flagged about 4 replies in 5, and a check blind to outputs sent it back on half of all
-//      replies, half of them false alarms. A contradiction is the one signal that is rarely wrong.
+//    - Unshown claims only go to the debug log. Nothing is shown to the user or sent to the agent.
+//      Why: sending the agent back on every unshown claim flagged about 4 replies in 5, and a check blind to
+//      outputs sent it back on half of all replies, half of them false alarms. A contradiction is the one signal
+//      that is rarely wrong. A "Not checked" line in the panel was tried on 2026-11-03 and removed the same day
+//      (the user: "This not checked section you've added is not doing anything for me"): the panel exists to help
+//      them decide quickly, and those lines made it hazier. Don't put them back in the panel. The judge's prompt
+//      still mentions that line, because that is the wording it was tested with.
 //    - Skipped on a turn started by a comment on an artifact page: the user is working through a list of comments,
 //      and checks on each one cost them the most for the least (2026-11-03 audit: 491 steps to record 71 comments).
 //    - A send-back no longer makes the agent repeat its open questions (one question was read three times in 7
@@ -62,7 +65,8 @@
 //    the user approves what they are told was checked; and posts went out without reading the channel, so they
 //    contradicted what teammates had just said. After a message goes to other people (Slack connector tools and the
 //    slack-bot script), the agent is told if it has not read that channel in the last hour, and Haiku lists stated
-//    facts that no step or user message backs. The panel shows a warning line too.
+//    facts that no step or user message backs. Nothing shows in the panel: it exists to help the user decide
+//    quickly (the user, 2026-11-03, about warning lines there: "making things more confusing and hazy for me").
 //    It warns and never blocks: the message has already gone, so the agent checks and tells the user. It does not
 //    see helper agents' sends, other posting routes (GitHub comments, email, a browser, a script that hides the
 //    call), and it can't tell whether a backed fact is true. The message text is sent to the model but never logged.
@@ -346,8 +350,6 @@ let lastAnswer = ''
 let suggestion = ''
 let summarizedWithSuggestion = false
 let doneNotice = null
-// The last reply's claims that no step's output showed, listed in the panel as "not checked" (no chat message).
-let unchecked = []
 let replyAnswersCheck = false
 // The reply a check sent the agent back on. Its answer says an open question still stands without repeating it, so
 // the panel reads this reply too, to keep the options on show.
@@ -811,8 +813,8 @@ async function doneCheck($, answer) {
     const verdict = parseJson(replyText(reply)) || {}
     // Every claim in the reply is judged, so a checked one (a test total) can't hide an unchecked one (a cost quote).
     // What happens next depends on the status (the user's choice, 2026-10-29): a claim a step's output contradicts
-    // sends the agent back; a claim no step shows is listed in the panel as "not checked", with no message in the
-    // chat. Sending the agent back on every unshown claim would have sent it back on about 4 replies in 5.
+    // sends the agent back; a claim no step shows only goes to the debug log below. Sending the agent back on every
+    // unshown claim would have sent it back on about 4 replies in 5.
     const claims = (Array.isArray(verdict.claims) ? verdict.claims : [])
       .filter((c) => c && typeof c.claim === 'string' && c.claim.trim())
       .map((c) => ({
@@ -832,8 +834,6 @@ async function doneCheck($, answer) {
         (claims.length ? claims.map((c) => c.status + ': ' + c.claim + (c.evidence ? ' [' + c.evidence + ']' : '')).join('; ') : 'no claim') +
         (broken ? ' | HABIT: ' + broken + ' (' + why + ')' : ''),
     )
-    unchecked = claims.filter((c) => c.status === 'unshown').map((c) => c.claim)
-    if (unchecked.length) $.ui.invalidate('ui.render')
     if (!needsCheck && !broken) return
     let text, notice
     if (needsCheck) {
@@ -906,7 +906,6 @@ const SEND_STEPS_LIMIT = 30000 // characters of the step list, the newest kept; 
 // an id), so a read through one doesn't count for a send through the other; a needless warning is one more look.
 const channelReads = new Map()
 // Warning lines for the panel, until the user's next message.
-let sendWarnings = []
 
 // What a step does with a channel: { kind: 'send' | 'read', channel, text }, or null for any other step.
 function slackStep(toolName, input) {
@@ -950,9 +949,6 @@ async function sendCheck($, step, now) {
     await debugLog($, 'send check: channel read recently ' + (wasRead ? 'yes' : 'no') + ', ' + unbacked.length + ' unbacked')
     if (wasRead && !unbacked.length) return ''
     const list = unbacked.map((x) => '"' + x.trim() + '"').join('; ')
-    if (!wasRead) sendWarnings.push('⚠ Sent to Slack without reading that channel in the last hour.')
-    if (unbacked.length) sendWarnings.push('⚠ Sent to Slack with no record shown for: ' + list)
-    $.ui.invalidate('ui.render')
     return (
       'Send check (from the next-steps mod, not the user): your message has gone to other people for the user. ' +
       (wasRead ? '' : 'You have not read that channel in the last hour, so read it now: has anyone said something that makes your message wrong or out of date? ') +
@@ -1093,8 +1089,6 @@ export function register(on) {
       summary = null
       suggestion = ''
       if (doneNotice && !doneNotice.isSent) doneNotice = null
-      unchecked = []
-      if (!replyAnswersCheck) sendWarnings = []
       $.ui.invalidate('ui.render')
     }
     return next(e)
@@ -1131,7 +1125,6 @@ export function register(on) {
     }
     const answer = e.answer
     lastAnswer = answer
-    unchecked = []
     let before = ''
     if (replyAnswersCheck) {
       // This reply answers a done-check prompt: show it, but don't check it again.
@@ -1342,15 +1335,7 @@ export function register(on) {
             : '⚠ The agent said "' + n.label + '", but one of its steps showed otherwise.'
       return Box({ borderStyle: 'round', paddingX: 1, paddingY: 1, children: [Text({ bold: true, wrap: 'wrap', children: [line] })] })
     }
-    // Claims no step showed: one line, so the user knows what to treat with care, without a send-back in the chat.
-    const warnings = [
-      ...(unchecked.length ? [Text({ key: 'unchecked', wrap: 'wrap', children: ['⚠ Not checked: ' + unchecked.map((c) => '"' + c + '"').join('; ')] })] : []),
-      ...sendWarnings.map((w, i) => Text({ key: 'send' + i, wrap: 'wrap', children: [w] })),
-    ]
-    if (!summary) {
-      if (!warnings.length) return next(e)
-      return Box({ borderStyle: 'round', paddingX: 1, paddingY: 1, children: warnings })
-    }
+    if (!summary) return next(e)
     const s = summary
     const title =
       s.state === 'wait'
@@ -1379,7 +1364,7 @@ export function register(on) {
       paddingX: 1,
       paddingY: 1,
       rowGap: 1,
-      children: [Text({ bold: true, wrap: 'wrap', children: [title] }), ...rows, ...warnings],
+      children: [Text({ bold: true, wrap: 'wrap', children: [title] }), ...rows],
     })
   })
 }

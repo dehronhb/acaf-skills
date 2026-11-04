@@ -719,7 +719,7 @@ test('the done check sees what each step returned, and marks a step that failed'
   expect(prompts[0]).toContain('Bash: npm run e2e (failed)\n      -> Exit code 1: login page timed out')
 })
 
-test('an unshown claim is listed in the panel as not checked, with no message to the agent', async ($, on) => {
+test('an unshown claim shows nothing in the panel and sends no message to the agent', async ($, on) => {
   const clock = mock.clock(on)
   const sent: string[] = []
   stubBand(on)
@@ -739,7 +739,8 @@ test('an unshown claim is listed in the panel as not checked, with no message to
   expect(sent.length).toBe(0)
   const ui = await $.ui.mount(BAND('desktop'))
   expect(await ui.find({ type: 'Text', text: /Fixed the login bug/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Not checked: "the fix costs about a cent per use"/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Not checked/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /the fix costs about a cent per use/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /all 34 tests pass/ })).toBeUndefined()
 })
 
@@ -839,7 +840,7 @@ function stubSend(on, unbacked: string[] | 'fail', seen: { prompts: string[]; lo
 const SLACK = 'mcp__a6a959a1__slack_'
 const noteOf = (r) => ((r && r.additionalContext) || []).filter((n: string) => n.includes('Send check')).join(' ')
 
-test('a Slack send with an unread channel and an unbacked fact warns the agent and the panel, and logs no message text', async ($, on) => {
+test('a Slack send with an unread channel and an unbacked fact warns the agent, not the panel, and logs no message text', async ($, on) => {
   mock.clock(on, { now: 1000 })
   stubBand(on)
   const seen = { prompts: [] as string[], logged: [] as string[] }
@@ -862,8 +863,8 @@ test('a Slack send with an unread channel and an unbacked fact warns the agent a
   expect(logged).not.toContain('secret plan')
 
   const ui = await $.ui.mount(BAND('desktop'))
-  expect(await ui.find({ type: 'Text', text: /without reading that channel/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /no record shown for: "Build 170 is on TestFlight"/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Sent to Slack/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Build 170 is on TestFlight/ })).toBeUndefined()
 })
 
 test('reading the channel within the hour clears the read warning; a read two hours ago does not', async ($, on) => {
