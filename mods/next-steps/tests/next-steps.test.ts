@@ -52,8 +52,8 @@ test('a reply that ends while no screen is attached still gets its band once the
   on('agent.list', () => ({ value: [] }))
   on('session.messages', () => ({ value: [] }))
   on('model.complete', ($, e) => {
-    const text = e.system.includes('never tried')
-      ? JSON.stringify({ claim: '', needsCheck: false })
+    const text = e.system.includes('before the person reads it')
+      ? JSON.stringify({ claims: [] })
       : JSON.stringify({ state: 'choose', headline: 'Ship it now or test first?', options: [{ say: '1', does: 'I ship it.' }] })
     return { value: { isAnswered: true, text, usage: USAGE } }
   })
@@ -209,7 +209,7 @@ function stubDoneCheck(on, verdict: object, calls: { done: number }) {
   on('fs.exists', () => ({ value: false }))
   on('fs.write', () => ({ value: undefined }))
   on('model.complete', ($, e) => {
-    if (e.system.includes('never tried')) {
+    if (e.system.includes('before the person reads it')) {
       calls.done += 1
       return { value: { isAnswered: true, text: JSON.stringify(verdict), usage: USAGE } }
     }
@@ -217,7 +217,7 @@ function stubDoneCheck(on, verdict: object, calls: { done: number }) {
   })
 }
 
-test('an untested "fixed" claim sends the agent back to check, and the panel says so', async ($, on) => {
+test("a claim a step's output contradicts sends the agent back to check, and the panel says so", async ($, on) => {
   const clock = mock.clock(on)
   const calls = { done: 0 }
   const sent: string[] = []
@@ -228,7 +228,7 @@ test('an untested "fixed" claim sends the agent back to check, and the panel say
     sent.push(e.text)
     return { text: e.text }
   })
-  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: true }, calls)
+  stubDoneCheck(on, { claims: [{ claim: 'the login bug is fixed', evidence: '13:05 npm test -> 1 failed', status: 'contradicted' }] }, calls)
 
   await finishTurn($, clock, 'Fixed the login bug.')
   expect(calls.done).toBe(1)
@@ -253,7 +253,7 @@ test('a checked claim passes and the normal panel shows', async ($, on) => {
     sent.push(e.text)
     return { text: e.text }
   })
-  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: false }, calls)
+  stubDoneCheck(on, { claims: [{ claim: 'the login bug is fixed', evidence: 'a step', status: 'shown' }] }, calls)
 
   await finishTurn($, clock, 'Fixed the login bug.')
   expect(calls.done).toBe(1)
@@ -269,7 +269,7 @@ test("the reply to a done-check prompt is not checked again, so it can't loop", 
   on('turn.complete', () => ({ text: '' }))
   on('agent.list', () => ({ value: [] }))
   on('prompt.submit', ($, e) => ({ text: e.text }))
-  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: true }, calls)
+  stubDoneCheck(on, { claims: [{ claim: 'the login bug is fixed', evidence: '13:05 npm test -> 1 failed', status: 'contradicted' }] }, calls)
 
   await finishTurn($, clock, 'Fixed the login bug.')
   await $.turn.complete({ turnId: 't2', answer: 'I tried it: login works now.', durationMs: 1000, isAborted: false, usage: null })
@@ -286,11 +286,11 @@ test('if the check prompt cannot be sent, the panel says the claim is not checke
   on('prompt.submit', () => {
     throw new Error('not here')
   })
-  stubDoneCheck(on, { claim: 'the login bug is fixed', needsCheck: true }, calls)
+  stubDoneCheck(on, { claims: [{ claim: 'the login bug is fixed', evidence: '13:05 npm test -> 1 failed', status: 'contradicted' }] }, calls)
 
   await finishTurn($, clock, 'Fixed the login bug.')
   const ui = await $.ui.mount(BAND('desktop'))
-  expect(await ui.find({ type: 'Text', text: /Not checked yet: the agent said "the login bug is fixed"/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /The agent said "the login bug is fixed", but one of its steps showed otherwise/ })).toBeDefined()
 })
 
 // Habit reminders, the habit check, and the judgment-in-code catch.
@@ -389,8 +389,8 @@ test('a clearly broken habit sends the agent back once', async ($, on) => {
     return { text: e.text }
   })
   on('model.complete', ($, e) => {
-    const text = e.system.includes('never tried')
-      ? JSON.stringify({ claim: '', needsCheck: false, brokenHabit: 'Look at the result the way I will see it before handing it over.', why: 'handed over build 7 with no pictures' })
+    const text = e.system.includes('before the person reads it')
+      ? JSON.stringify({ claims: [], brokenHabit: 'Look at the result the way I will see it before handing it over.', why: 'handed over build 7 with no pictures' })
       : JSON.stringify({ state: 'nothing', headline: 'Build 7 ready.', options: [] })
     return { value: { isAnswered: true, text, usage: USAGE } }
   })
@@ -416,8 +416,8 @@ test('a done check and a broken habit go back together in one message', async ($
     return { text: e.text }
   })
   on('model.complete', ($, e) => {
-    const text = e.system.includes('never tried')
-      ? JSON.stringify({ claim: 'Draft 3 fixes the elbow', needsCheck: true, brokenHabit: 'Look at the result the way I will see it before handing it over.', why: 'no link and nothing opened' })
+    const text = e.system.includes('before the person reads it')
+      ? JSON.stringify({ claims: [{ claim: 'Draft 3 fixes the elbow', evidence: '13:05 npm test -> 1 failed', status: 'contradicted' }], brokenHabit: 'Look at the result the way I will see it before handing it over.', why: 'no link and nothing opened' })
       : JSON.stringify({ state: 'nothing', headline: 'Draft 3 ready.', options: [] })
     return { value: { isAnswered: true, text, usage: USAGE } }
   })
@@ -639,9 +639,9 @@ const ROW = (text: string, origin: object, isExpanded = false) => ({
 
 test("the mod's own check messages are drawn as one short grey line", async ($, on) => {
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
-  const msg = 'The next-steps plugin sent a message: Done check: your last reply says "The Back button now works.", but nothing you did...'
+  const msg = 'The next-steps plugin sent a message: Done check: your last reply says "The Back button now works.", but a step\'s output says otherwise...'
   const ui = await $.ui.mount(ROW(msg, { kind: 'plugin', name: 'next-steps' }))
-  expect(await ui.find({ type: 'Text', text: /Done check \(automatic\): asked the agent to try "The Back button now works\."/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Done check \(automatic\): one of the agent's steps contradicts "The Back button now works\."/ })).toBeDefined()
 })
 
 test("the user's own messages, and the expanded view, are left as Claude Code draws them", async ($, on) => {
@@ -684,10 +684,241 @@ test('the reply check sees actions from earlier turns, marked as such', async ($
     { role: 'assistant', text: 'The back button now works.', toolUses: [] },
   ] }))
   on('model.complete', ($, e) => {
-    if (e.system.includes('never tried')) prompts.push(e.prompt)
-    return { value: { isAnswered: true, text: JSON.stringify({ claim: 'the back button works', needsCheck: false, state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
+    if (e.system.includes('before the person reads it')) prompts.push(e.prompt)
+    return { value: { isAnswered: true, text: JSON.stringify({ claims: [{ claim: 'the back button works', evidence: 'a step', status: 'shown' }], state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
   })
 
   await finishTurn($, clock, 'The back button now works.')
   expect(prompts[0]).toContain('(earlier turn) Bash: flutter build windows')
+})
+
+test('the done check sees what each step returned, and marks a step that failed', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  const prompts: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('session.messages', () => ({ value: [] }))
+  on('classic.PostToolUse', () => ({}))
+  on('classic.PostToolUseFailure', () => ({}))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('model.complete', ($, e) => {
+    if (e.system.includes('before the person reads it')) prompts.push(e.prompt)
+    return { value: { isAnswered: true, text: JSON.stringify({ claims: [], state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
+  })
+
+  await $.prompt.submit({ text: 'Fix the login bug.', wait: false, origin: { kind: 'composer' } })
+  await clock.advance(60 * 1000)
+  await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: { command: 'npm test' }, tool_response: { stdout: 'Tests: 34 passed, 34 total', stderr: '' } })
+  await $.classic.PostToolUseFailure({ tool_name: 'Bash', tool_input: { command: 'npm run e2e' }, error: 'Exit code 1: login page timed out' })
+  await finishTurn($, clock, 'Fixed the login bug; all 34 tests pass.')
+  expect(prompts[0]).toContain('user: Fix the login bug.')
+  expect(prompts[0]).toContain('Bash: npm test\n      -> Tests: 34 passed, 34 total')
+  expect(prompts[0]).toContain('Bash: npm run e2e (failed)\n      -> Exit code 1: login page timed out')
+})
+
+test('an unshown claim is listed in the panel as not checked, with no message to the agent', async ($, on) => {
+  const clock = mock.clock(on)
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  const calls = { done: 0 }
+  stubDoneCheck(on, { claims: [
+    { claim: 'all 34 tests pass', evidence: '13:05 npm test -> 34 passed', status: 'shown' },
+    { claim: 'the fix costs about a cent per use', evidence: 'none', status: 'unshown' },
+  ] }, calls)
+
+  await finishTurn($, clock, 'All 34 tests pass, and the fix costs about a cent per use.')
+  expect(sent.length).toBe(0)
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ type: 'Text', text: /Fixed the login bug/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Not checked: "the fix costs about a cent per use"/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /all 34 tests pass/ })).toBeUndefined()
+})
+
+test('when a reply makes a shown claim and a contradicted one, the contradicted one is sent back', async ($, on) => {
+  const clock = mock.clock(on)
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  const calls = { done: 0 }
+  stubDoneCheck(on, { claims: [
+    { claim: 'the page is published', evidence: '13:01 publish -> ok', status: 'shown' },
+    { claim: 'all 34 tests pass', evidence: '13:05 npm test -> 32 passed, 2 failed', status: 'contradicted' },
+  ] }, calls)
+
+  await finishTurn($, clock, 'The page is published and all 34 tests pass.')
+  expect(sent.length).toBe(1)
+  expect(sent[0]).toContain('all 34 tests pass')
+  expect(sent[0]).toContain('32 passed, 2 failed')
+  expect(sent[0]).not.toContain('the page is published')
+})
+
+test('a turn started by an artifact comment skips the done check; the next turn from the composer gets it', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  const calls = { done: 0 }
+  stubDoneCheck(on, { claims: [{ claim: 'the tests pass', evidence: '13:05 npm test -> 2 failed', status: 'contradicted' }] }, calls)
+
+  await $.prompt.submit({ text: '[Artifact comment sent to Claude] Make this heading smaller.', wait: false, origin: { kind: 'composer' } })
+  await finishTurn($, clock, 'Heading is smaller, and the tests pass.')
+  expect(calls.done).toBe(0)
+
+  await $.prompt.submit({ text: 'Is it live?', wait: false, origin: { kind: 'composer' } })
+  await finishTurn($, clock, 'It is live, and the tests pass.')
+  expect(calls.done).toBe(1)
+})
+
+test('a send-back tells the agent not to re-list its question, and the panel still reads the reply before the check', async ($, on) => {
+  const clock = mock.clock(on)
+  const sent: string[] = []
+  const summaryPrompts: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  on('session.messages', () => ({ value: [{ role: 'user', text: 'Fix it.', toolUses: [] }] }))
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('model.complete', ($, e) => {
+    if (e.system.includes('before the person reads it')) {
+      return { value: { isAnswered: true, text: JSON.stringify({ claims: [{ claim: 'the tests pass', evidence: '13:05 npm test -> 2 failed', status: 'contradicted' }] }), usage: USAGE } }
+    }
+    summaryPrompts.push(e.prompt)
+    return { value: { isAnswered: true, text: JSON.stringify({ state: 'nothing', headline: 'Done.', options: [] }), usage: USAGE } }
+  })
+
+  await finishTurn($, clock, 'The tests pass. Ship today or tomorrow?')
+  expect(sent.length).toBe(1)
+  expect(sent[0]).toContain("don't repeat the question or its options")
+
+  summaryPrompts.length = 0
+  await finishTurn($, clock, 'Two tests fail, so I fixed them. That question still stands.')
+  expect(sent.length).toBe(1) // the reply to a check is never checked again
+  expect(summaryPrompts.length).toBe(1)
+  expect(summaryPrompts[0]).toContain('Ship today or tomorrow?')
+  expect(summaryPrompts[0]).toContain('That question still stands.')
+})
+
+// The send check: the model stub answers the send-check call and the summary call differently.
+function stubSend(on, unbacked: string[] | 'fail', seen: { prompts: string[]; logged: string[] }) {
+  on('classic.PostToolUse', () => ({}))
+  on('session.messages', () => ({ value: [{ role: 'user', text: 'Tell the team about the build.', toolUses: [] }] }))
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', ($, e) => {
+    seen.logged.push(String(e.content ?? e.text ?? e.data ?? ''))
+    return { value: undefined }
+  })
+  on('model.complete', ($, e) => {
+    if (e.system.includes('sent to other people')) {
+      seen.prompts.push(e.prompt)
+      if (unbacked === 'fail') throw new Error('no model')
+      return { value: { isAnswered: true, text: JSON.stringify({ unbacked }), usage: USAGE } }
+    }
+    return { value: { isAnswered: true, text: '{}', usage: USAGE } }
+  })
+}
+const SLACK = 'mcp__a6a959a1__slack_'
+const noteOf = (r) => ((r && r.additionalContext) || []).filter((n: string) => n.includes('Send check')).join(' ')
+
+test('a Slack send with an unread channel and an unbacked fact warns the agent and the panel, and logs no message text', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  stubBand(on)
+  const seen = { prompts: [] as string[], logged: [] as string[] }
+  stubSend(on, ['Build 170 is on TestFlight'], seen)
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  await $.prompt.submit({ text: 'Tell the team about the build.', wait: false, origin: { kind: 'composer' } })
+  await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: { command: 'npm test', description: 'Run the tests' } })
+
+  const r = await $.classic.PostToolUse({ tool_name: SLACK + 'send_message', tool_input: { channel_id: 'C1', message: 'Build 170 is on TestFlight, secret plan inside.' } })
+  const note = noteOf(r)
+  expect(note).toContain('have not read that channel')
+  expect(note).toContain('"Build 170 is on TestFlight"')
+  expect(note).toContain('do not post one yourself')
+  expect(seen.prompts[0]).toContain('secret plan inside')
+  expect(seen.prompts[0]).toContain('user: Tell the team about the build.')
+
+  const logged = seen.logged.join('\n')
+  expect(logged).toContain('send check: channel read recently no, 1 unbacked')
+  expect(logged).not.toContain('Build 170')
+  expect(logged).not.toContain('secret plan')
+
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ type: 'Text', text: /without reading that channel/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /no record shown for: "Build 170 is on TestFlight"/ })).toBeDefined()
+})
+
+test('reading the channel within the hour clears the read warning; a read two hours ago does not', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  const seen = { prompts: [] as string[], logged: [] as string[] }
+  stubSend(on, [], seen)
+  const send = { tool_name: SLACK + 'send_message', tool_input: { channel_id: 'C1', message: 'Thanks!' } }
+
+  await $.classic.PostToolUse({ tool_name: SLACK + 'read_channel', tool_input: { channel_id: 'C1' } })
+  await clock.advance(30 * 60 * 1000)
+  expect(noteOf(await $.classic.PostToolUse(send))).toBe('')
+
+  await clock.advance(2 * 60 * 60 * 1000)
+  expect(noteOf(await $.classic.PostToolUse(send))).toContain('have not read that channel')
+
+  await $.classic.PostToolUse({ tool_name: SLACK + 'read_thread', tool_input: { channel_id: 'C2' } })
+  expect(noteOf(await $.classic.PostToolUse(send))).toContain('have not read that channel') // another channel's read doesn't count
+})
+
+test('the slack-bot script is a send route too, and its reads count; other commands are ignored', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  const seen = { prompts: [] as string[], logged: [] as string[] }
+  stubSend(on, ['The build is out'], seen)
+  const bash = (command: string) => $.classic.PostToolUse({ tool_name: 'Bash', tool_input: { command } })
+
+  expect(noteOf(await bash('node "$B" post build-sync "The build is out"'))).toContain('have not read that channel')
+  expect(seen.prompts[0]).toContain('The build is out')
+
+  await bash('node "$HOME/.claude/skills/slack-bot/bot.mjs" read build-sync --limit 5')
+  const after = noteOf(await bash('node "$B" post build-sync "The build is out"'))
+  expect(after).not.toContain('have not read that channel')
+  expect(after).toContain('"The build is out"')
+
+  const count = seen.prompts.length
+  expect(noteOf(await bash('git commit -m "post about the build"'))).toBe('')
+  expect(seen.prompts.length).toBe(count)
+})
+
+test('the send check never blocks: a model failure leaves only the read warning, and never throws', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  const seen = { prompts: [] as string[], logged: [] as string[] }
+  stubSend(on, 'fail', seen)
+
+  const r = await $.classic.PostToolUse({ tool_name: SLACK + 'send_message', tool_input: { channel_id: 'C1', message: 'Build 170 is out.' } })
+  expect(noteOf(r)).toContain('have not read that channel')
+  expect(noteOf(r)).not.toContain('Nothing in your recent steps')
+  expect(r.decision).toBeUndefined()
+})
+
+test("a helper agent's send is not seen by the send check", async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  const seen = { prompts: [] as string[], logged: [] as string[] }
+  stubSend(on, ['Build 170 is out'], seen)
+
+  const r = await $.classic.PostToolUse({ agent_id: 'a1', tool_name: SLACK + 'send_message', tool_input: { channel_id: 'C1', message: 'Build 170 is out.' } })
+  expect(noteOf(r)).toBe('')
+  expect(seen.prompts.length).toBe(0)
 })
