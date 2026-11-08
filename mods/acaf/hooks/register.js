@@ -5,12 +5,14 @@
 //   2. After a compaction or a resume, the agent re-orients from the records.
 //   3. A `direction` tool shows the user an options card before an unsure,
 //      costly move, and logs the choice.
-//   4. At about 200k tokens the agent is told to save its place in the records.
+//   4. At about 340k tokens the agent is told to save its place in the records.
 //      The condensing itself is Claude Code's own: each ACAF project sets
-//      `autoCompactWindow: 250000` in .claude/settings.local.json. (A mod can't
+//      `autoCompactWindow: 400000` in .claude/settings.local.json, so it condenses at about 368k.
+//      (250000 left only about 80k of room after each restart, and agents condensed every 20 to 30
+//      minutes; raised on the user's go-ahead, 2026-11-07.) (A mod can't
 //      condense in the Desktop app: $.session.compact is refused in SDK sessions.)
 
-const PREPARE_AT = 200000
+const PREPARE_AT = 340000
 
 // Whether the agent has had the prepare note since the last condensing. Reset on reload.
 let prepared = false
@@ -77,7 +79,7 @@ const REORIENT_NOTE =
   'only for what happened after the records were last updated, and write that into the records first.'
 
 const PREPARE_NOTE =
-  'This conversation is nearing 250k tokens and will be condensed soon. Within the next few actions (finish ' +
+  'This conversation is nearing 400k tokens and will be condensed soon. Within the next few actions (finish ' +
   "the current step; don't start a new slice), bring the acaf/ records up to date so nothing is lost: " +
   "change_log.md rows, the manifest's slice checkboxes, any DEV- or lesson entries, and handoff_summary.md " +
   'with where you are, what the user decided this session, and the exact next step.'

@@ -165,10 +165,20 @@ function stubTokens(on, tokens: number) {
   on('session.usage', () => ({ value: { context: { tokens, window: 1000000, percent: tokens / 10000 }, rateLimits: [] } }))
 }
 
-test('near 250k the agent is told once to save its place', async ($, on) => {
+test('at 300k, well short of the 400k window, the agent is not told to save its place', async ($, on) => {
   const seen = []
   stubProject(on, true)
-  stubTokens(on, 210000)
+  stubTokens(on, 300000)
+  capturePrompt(on, seen)
+
+  await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context.length).toBe(1)
+})
+
+test('near 400k the agent is told once to save its place', async ($, on) => {
+  const seen = []
+  stubProject(on, true)
+  stubTokens(on, 350000)
   capturePrompt(on, seen)
 
   await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } })

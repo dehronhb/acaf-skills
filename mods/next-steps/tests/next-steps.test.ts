@@ -237,7 +237,7 @@ test("a claim a step's output contradicts sends the agent back to check, and the
   expect(sent[0]).toContain('NOT from the user')
   expect(sent[0]).toContain('The automatic done check asked me to')
   expect(sent[0]).toContain("Don't repeat the rest of your last reply")
-  expect(sent[0]).toContain('technical product manager')
+  expect(sent[0]).toContain('engineering manager')
   const ui = await $.ui.mount(BAND('desktop'))
   expect(await ui.find({ type: 'Text', text: /Checking: the agent said "the login bug is fixed"/ })).toBeDefined()
 })
@@ -922,4 +922,199 @@ test("a helper agent's send is not seen by the send check", async ($, on) => {
   const r = await $.classic.PostToolUse({ agent_id: 'a1', tool_name: SLACK + 'send_message', tool_input: { channel_id: 'C1', message: 'Build 170 is out.' } })
   expect(noteOf(r)).toBe('')
   expect(seen.prompts.length).toBe(0)
+})
+
+
+// The proof and ending checks: what a choice needs goes back to the agent, never onto the panel.
+function stubChecks(on, { claims = [] as any[], notes = [] as any[], ending = null as any, seen = [] as any[], doneGate = null as Promise<void> | null }) {
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('session.messages', () => ({ value: [] }))
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', () => ({ value: undefined }))
+  on('model.complete', async ($, e) => {
+    seen.push(e)
+    let text
+    if (e.system.includes('before the person reads it')) {
+      if (doneGate) await doneGate
+      text = JSON.stringify({ claims })
+    } else if (e.system.includes('about to press')) {
+      text = JSON.stringify({ notes })
+    } else if (e.system.includes('You check the end of')) {
+      text = JSON.stringify(ending || { kind: 'merge or test', verdict: 'ok', missing: '' })
+    } else {
+      text = JSON.stringify({
+        state: 'choose',
+        headline: 'Merge the fix or try it first?',
+        options: [{ say: 'Merge it', does: 'Merges the fix to main.' }, { say: 'Try it first', does: 'Rebuilds so you can test.' }],
+      })
+    }
+    return { value: { isAnswered: true, text, usage: USAGE } }
+  })
+}
+
+const UNSHOWN = [{ claim: 'The login crash is fixed', evidence: 'none', status: 'unshown' }]
+const isProof = (e) => e.system.includes('about to press')
+const isEnding = (e) => e.system.includes('You check the end of')
+const checksSent = (sent: string[]) => sent.filter((t) => t.includes('NOT from the user'))
+// The checks take a few steps after the buttons are drawn: the proof call, its log line, the send.
+async function settle(clock) {
+  for (let k = 0; k < 5; k++) await clock.advance(10)
+}
+
+test('a button that rests on an unproved claim sends the agent back to prove it, and the panel stays buttons only', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const seen = []
+  const sent: string[] = []
+  stubChecks(on, { claims: UNSHOWN, notes: [{ button: 1, about: 'merging the fix', note: "Login fix hasn't been tried" }], seen })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  await settle(clock)
+  const asked = seen.find(isProof)
+  expect(asked.prompt).toContain('1. Merge it: Merges the fix to main.')
+  expect(asked.prompt).toContain('The login crash is fixed')
+  expect(checksSent(sent).length).toBe(1)
+  const text = checksSent(sent)[0]
+  expect(text).toContain('Proof check: the button "Merge it"')
+  expect(text).toContain("Login fix hasn't been tried")
+  expect(text).toContain('Prove it now')
+  expect(text).toContain('ask your question again, complete this time')
+  expect(text).toContain('The automatic proof check asked me to')
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ type: 'Text', text: /Proof check: the "Merge it" choice/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /⚠️/ })).toBeUndefined()
+})
+
+test('the proof check still runs when the done check finishes after the buttons are drawn', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const sent: string[] = []
+  let release
+  const doneGate = new Promise<void>((r) => { release = r })
+  stubChecks(on, { claims: UNSHOWN, notes: [{ button: 1, about: 'merging', note: "Login fix hasn't been tried" }], doneGate })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ key: 'opt-0' })).toBeDefined()
+  expect(checksSent(sent).length).toBe(0)
+  release()
+  await settle(clock)
+  expect(checksSent(sent).length).toBe(1)
+  expect(checksSent(sent)[0]).toContain('Proof check')
+})
+
+test('no unproved claim means no proof call and no send-back', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const seen = []
+  const sent: string[] = []
+  stubChecks(on, { claims: [{ claim: 'All tests pass', evidence: '10:00 pass', status: 'shown' }], notes: [{ button: 1, note: 'x' }], seen })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  await settle(clock)
+  expect(seen.some(isProof)).toBe(false)
+  expect(seen.filter(isEnding).length).toBe(1)
+  expect(checksSent(sent).length).toBe(0)
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ key: 'opt-1' })).toBeDefined()
+})
+
+test('a garbled or out-of-range proof answer sends nothing back', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const sent: string[] = []
+  stubChecks(on, { claims: UNSHOWN, notes: [{ button: 9, note: 'nope' }, { button: 2, note: '' }, null] })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  await settle(clock)
+  expect(checksSent(sent).length).toBe(0)
+  const ui = await $.ui.mount(BAND('desktop'))
+  expect(await ui.find({ key: 'opt-0' })).toBeDefined()
+})
+
+test("an ending that leaves out what the user needs to choose sends the agent back to ask again, with the user's message judged too", async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const seen = []
+  const sent: string[] = []
+  stubChecks(on, { ending: { kind: 'merge or test', verdict: 'gap', missing: 'what merging risks, and which one the agent recommends' }, seen })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await $.prompt.submit({ text: 'Is the fix ready?', wait: false, origin: { kind: 'composer' } })
+  await finishTurn($, clock)
+  await settle(clock)
+  expect(seen.find(isEnding).prompt).toContain('Is the fix ready?')
+  expect(checksSent(sent).length).toBe(1)
+  const text = checksSent(sent)[0]
+  expect(text).toContain('Ending check')
+  expect(text).toContain('what merging risks, and which one the agent recommends')
+  expect(text).toContain('ask your question again, complete this time')
+  expect(text).not.toContain("don't repeat the question or its options")
+})
+
+test('an "ok" ending, and a gap with nothing named as missing, send nothing back', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const sent: string[] = []
+  stubChecks(on, { ending: { kind: 'merge', verdict: 'gap', missing: '' } })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  await settle(clock)
+  expect(checksSent(sent).length).toBe(0)
+})
+
+test('a contradicted claim, an ending gap and a proof gap go back together in one message', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const sent: string[] = []
+  stubChecks(on, {
+    claims: [...UNSHOWN, { claim: 'all 34 tests pass', evidence: '13:05 npm test -> 2 failed', status: 'contradicted' }],
+    notes: [{ button: 1, about: 'merging', note: "Login fix hasn't been tried" }],
+    ending: { kind: 'merge or test', verdict: 'gap', missing: 'no pick between merging and testing' },
+  })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  await settle(clock)
+  expect(checksSent(sent).length).toBe(1)
+  const text = checksSent(sent)[0]
+  expect(text).toContain('Done check')
+  expect(text).toContain('Proof check')
+  expect(text).toContain('Ending check')
+  expect(text).toContain('The automatic done check asked me to')
+})
+
+test('if the user has already replied when the checks finish, ending and proof findings are dropped', async ($, on) => {
+  const clock = mock.clock(on)
+  stubBand(on)
+  const sent: string[] = []
+  let release
+  const doneGate = new Promise<void>((r) => { release = r })
+  stubChecks(on, {
+    claims: UNSHOWN,
+    notes: [{ button: 1, about: 'merging', note: "Login fix hasn't been tried" }],
+    ending: { kind: 'merge or test', verdict: 'gap', missing: 'no pick' },
+    doneGate,
+  })
+  on('prompt.submit', ($, e) => { sent.push(e.text); return { text: e.text } })
+
+  await finishTurn($, clock)
+  await $.prompt.submit({ text: 'Merge it', wait: false, origin: { kind: 'composer' } })
+  release()
+  await settle(clock)
+  expect(checksSent(sent).length).toBe(0)
+})
+
+test("the mod's ending and proof messages are drawn as one short grey line in the chat", async ($, on) => {
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
+  const proof = await $.ui.mount(ROW('[Automatic proof check from the next-steps mod. This message is NOT from the user.] Proof check: the button "Merge it" (Merges.) commits the user', { kind: 'plugin', name: 'next-steps' }))
+  expect(await proof.find({ type: 'Text', text: /Proof check \(automatic\): the "Merge it" choice/ })).toBeDefined()
+  const ending = await $.ui.mount({ ...ROW('[Automatic ending check from the next-steps mod.] Ending check: your last reply asks the user to choose. Missing: "no pick".', { kind: 'plugin', name: 'next-steps' }), requestId: 'm2' })
+  expect(await ending.find({ type: 'Text', text: /Ending check \(automatic\): .*\("no pick"\)/ })).toBeDefined()
 })
