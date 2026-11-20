@@ -1,6 +1,6 @@
 ---
 name: acaf-grill
-description: "Ask the user first: before building or changing anything the user (or the people they build for) will see or use, ask the questions only they can answer about the experience they expect, as multiple-choice questions with your pick first, and build only once those choices are settled. One round for a change to something that exists; round by round for something new, starting with the bar (how impressive it should be, and a reference the user loves). Use when a request adds or changes a screen, a page, a flow, navigation, what players, friends or customers see, who has to sign in, or how the user will try it out, and the request leaves those choices open. Also when the user says \"grill me\" or \"ask me first\". Skip it for a fix whose right behavior is obvious, for work the user won't see, and when the request already settles the choices."
+description: "Ask the user first: before building or changing anything the user (or the people they build for) will see or use, ask the questions only they can answer about the experience they expect, as multiple-choice questions with your pick first, and build only once those choices are settled. One round for a change to something that exists; round by round for something new, starting with the bar (how impressive it should be, and a reference the user loves). Use when a request adds or changes a screen, a page, a flow, navigation, what players, friends or customers see, who has to sign in, or how the user will try it out, and the request leaves those choices open. Also when the user says \"grill me\" or \"ask me first\". Skip it for a fix whose right behavior is obvious, for work the user won't see, and when the request already settles the choices. For projects that use the ACAF method (an acaf/ folder); in other projects use ask-first, the same skill without the ACAF name."
 ---
 
 # ACAF Grill: ask about the experience before building it
@@ -33,6 +33,10 @@ leaves choices about that open. Two things that count, though they are easy to m
 
 Look for choices in:
 
+- **The goal, first:** who it is for and what it should achieve for them. If the user hasn't said, make it the
+  first question of the first round, before anything about how it looks or works, because the goal decides the
+  many small choices you will make without asking. Ask it with 2 to 4 likely goals, your best guess first, and
+  invite their own words ("or tell me in a line"). Skip it when they have already said why.
 - **What they see:** layout, wording, what's on the screen, and whether it should match screens they already approved.
 - **What they do:** where they start, what they click, what happens next, how they get back.
 - **Who:** who uses it, who has to sign in or set anything up (friends, players, customers, only the user).
@@ -63,6 +67,19 @@ pointed at, so you ask only what they alone can answer. *Don't ask:* "Do you alr
 
 ## Step 3: ask in rounds
 
+- **Keep only the questions that change the build.** For each question you drafted, check two things: would a
+  different answer change what gets built, and does nothing already answer it (the request, the code, the
+  records, an earlier answer)? If either fails, don't ask it. Make the call and state it in your say-back as a
+  proposal they can correct ("Test links go on your DM page; say if you'd rather get them by message").
+  Choices about your own process (where files go, how you will show the work, whether to look further) are
+  always your call: decide and say what you decided. An expert's blind-graded tests of this rule cut filler
+  questions from 41 to 23 and still drew out the goal every time (Superpowers 7.0.2).
+- **A fresh look before a big round.** When a round has 3 or 4 questions, start a helper agent that did not
+  draft them. Give it the user's request, what you found in Step 2, and your draft questions, and ask it to sort
+  each one, with a one-line reason, as "look it up" (the answer can be found), "agent's call" (the answer
+  doesn't change what gets built, or one choice is clearly sensible) or "only the user". Look up or decide the
+  first two kinds yourself; send only the third. Where you disagree with its sort, keep your judgment and say
+  why in a line.
 - **Each question:** one plain sentence about the experience, 2 to 4 answers that are really different, your
   recommended answer first with "(Recommended)", and a few words on what each answer means for them. Use the
   `AskUserQuestion` tool when you have it; otherwise number the questions and letter the answers so the user can

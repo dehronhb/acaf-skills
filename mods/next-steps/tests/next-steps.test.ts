@@ -356,6 +356,24 @@ test('a request for something the user will see, with choices open, tells the ag
   expect(seen[1].context ?? []).toEqual([])
 })
 
+test('outside an ACAF project the ask-first note names ask-first, never acaf-grill', async ($, on) => {
+  const seen = []
+  mock.env(on, { USERPROFILE: '/home' })
+  on('session.cwd', () => ({ value: 'C:/dev/work/app' }))
+  on('fs.exists', ($, e) => ({ value: /CLAUDE\.md$/.test(e.path) }))
+  on('fs.read', () => ({ value: CLAUDE_MD }))
+  on('session.messages', () => ({ value: [{ role: 'assistant', text: 'The claim screen is live.', toolUses: [] }] }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: '{"pick": [], "askFirst": true}', usage: USAGE } }))
+  on('prompt.submit', ($, e) => {
+    seen.push(e)
+    return { text: e.text }
+  })
+
+  await $.prompt.submit({ text: 'Add a screen for sharing a claim with a friend.', wait: false, origin: { kind: 'composer' } })
+  expect(seen[0].context[0]).toContain('Follow the ask-first skill')
+  expect(seen[0].context[0]).not.toContain('acaf')
+})
+
 test("another program's claude -p call (no screen) gets no notes and no model call", async ($, on) => {
   const seen = []
   let modelCalls = 0

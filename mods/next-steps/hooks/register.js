@@ -231,6 +231,12 @@ const DONE_CHECK_SYSTEM = [
 // - A reply whose next step is named by internal labels with a plain, dense description beside them passed both runs.
 //   The words rule doesn't catch dense engineer-speak when a plain description is there.
 // - The user's own example (a merge approval with four carried-over questions): "ok" in 2 of 2 runs.
+// 2026-11-20, a standing test set (private, outside this repo): 15 replies the user said he could not follow, and 15
+// he chose from without complaint, 2 runs each. This prompt: 0 of 30 caught, 30 of 30 quiet. Two rewrites (stronger
+// words rule; read as the user and name their first question): 4 of 30 caught, 26 and 27 of 30 quiet. The second
+// rewrite on Opus: 0 of 30. The replies he couldn't follow read as complete to a judge who sees only the reply: his
+// confusion depends on what he knows at that moment. So the prompt was kept, and a fix has to come from elsewhere
+// (how agents write, or a way for him to ask for a plain re-explanation), not from more wording here.
 const ENDING_CHECK_MODEL = 'sonnet'
 const ENDING_CHECK_SYSTEM = [
   "You check the end of an AI coding agent's final reply, for one person who reads mostly the last message and then",
@@ -378,6 +384,11 @@ const HABIT_CHECK_ADDITION = [
   'layout is ready for you" + no open or screenshot step -> broken. When unsure, "".',
 ].join('\n')
 
+// askFirst, 2026-11-20: go-aheads used to be always false, but in the user's chats most building before asking
+// started on a go-ahead ("build the plan") with no mockup shown. Measured on a standing test set (private, outside
+// this repo; 2 runs each, Sonnet): moments he later complained about, 5 of 20 caught before, 10 of 20 after; messages
+// he accepted, 29 of 30 quiet both times (the one flip: "go ahead and continue" before a sign-in option was added).
+// Rerun that set before changing this prompt.
 const HABIT_PICK_SYSTEM = [
   "You help an AI coding agent remember the user's habits at the moment they matter. You get the habit list,",
   "the agent's last message, and the user's new message. You are not the agent: never answer or act on the",
@@ -391,30 +402,55 @@ const HABIT_PICK_SYSTEM = [
   'askFirst: true when the user asks the agent to build or change something the user, or the people they build',
   'for, will see or use (a screen, page, flow, navigation, what players or friends see, who has to sign in, how',
   'the user will try it out), AND the message leaves choices about that experience open that the user would care',
-  'about. false for: answers to questions the agent just asked; a go-ahead on something already agreed; a fix',
-  'whose right behavior is obvious (a crash, a typo, a dead link); work the user will not see; questions,',
-  'explanations and status checks. When unsure whether choices are left open, true: the user prefers being',
-  'asked, and the agent can skip in one line. Answers and go-aheads are always false.',
+  'about. A go-ahead counts too ("build the plan", "go ahead and set up the site", "start the brand work") when it',
+  'starts building something the user will see or use and the last message of the agent did not already show them how',
+  'it will look and work (a mockup, a picture, or the answered questions): a plan or a list of steps says what gets',
+  'built, not how it looks or flows. false for: answers to questions the agent just asked; a go-ahead on something',
+  'whose look and flow the user has already seen or settled; a fix whose right behavior is obvious (a crash, a',
+  'typo, a dead link); work the user will not see; questions, explanations and status checks. When unsure whether',
+  'choices are left open, true: the user prefers being asked, and the agent can skip in one line.',
   'Examples of where the line falls:',
   '"I need a way to go through the surveys as if I was each player" -> true (how they start, where it lives)',
   '"add a page for the DM to see everyone\'s answers" -> true',
   '"make the heading gold like the survey\'s" -> false (settled)',
   '"the Save button crashes the app" -> false (obvious fix)',
-  '"1a, 2b, 3a" or "go" -> false (answering or agreeing)',
+  '"1a, 2b, 3a" -> false (answering)',
+  '"go" after the agent showed the mockup -> false (settled)',
+  '"build the plan" after the agent listed steps for a new page, with no mockup -> true',
 ].join('\n')
 
 // Added to a message that asks for something the user will see or use with choices left open. Agents guessed
 // the experience and built it, and the user had to explain and wait for a rebuild (the user, 2026-10-20:
 // "You agents are at your best when you ask clarifying questions first"). Not a plan review: only the choices
 // the user would care about, quick to answer.
-const ASK_FIRST_NOTE = [
+// The skill it names depends on the project (found 2026-11-20): projects with an acaf/ folder use acaf-grill;
+// every other project uses ask-first, its copy without the ACAF name, because some projects keep the ACAF name out
+// of their chats. Naming acaf-grill everywhere meant those chats were never pointed at the skill meant for them.
+const askFirstNote = (skill) => [
   'Ask first (from the next-steps mod, not the user): this request looks like it adds or changes something the',
   'user, or the people they build for, will see or use, with choices about that experience still open. Before building, ask the questions only',
   'they can answer (what they will see and click, what happens next, who uses it or signs in, how they will try',
   'it), each with 2 to 4 multiple-choice answers and your pick first, using the AskUserQuestion tool if you have',
-  'it. Follow the acaf-grill skill: one round for a change to something that exists, round by round for something new. Look facts up',
+  'it. Follow the ' + skill + ' skill: one round for a change to something that exists, round by round for something new. Look facts up',
   'yourself. If the request already settles these choices, skip the questions and say so in a line.',
 ].join(' ')
+
+// True when the session's folder, or one of up to 5 folders above it, has an acaf/ folder: the ACAF mod's own
+// test for an ACAF project. False when it can't tell, so the note falls back to the skill every project may use.
+async function inAcafProject($) {
+  try {
+    let dir = await $.session.cwd()
+    for (let i = 0; dir && i < 6; i++) {
+      if (await $.fs.exists(dir + '/acaf')) return true
+      const parent = dir.replace(/[\\/][^\\/]*$/, '')
+      if (!parent || parent === dir) return false
+      dir = parent
+    }
+  } catch {
+    // Can't tell; treat it as not ACAF.
+  }
+  return false
+}
 
 const JUDGMENT_CODE_SYSTEM = [
   'You look at code an AI agent just wrote.',
@@ -1406,9 +1442,10 @@ export function register(on) {
     const { picked, askFirst } = await pickHabits($, e.text, habits)
     // The screen it ran on (e.g. "desktop"), so the log shows the no-screen skip is not catching real sessions.
     const screens = await $.session.surfaces().then((s) => s.join(','), () => '?')
-    await debugLog($, 'habit reminder [' + screens + ']: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
+    const askSkill = askFirst ? ((await inAcafProject($)) ? 'acaf-grill' : 'ask-first') : ''
+    await debugLog($, 'habit reminder [' + screens + ']: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first (' + askSkill + ')' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
     const notes = []
-    if (askFirst) notes.push(ASK_FIRST_NOTE)
+    if (askFirst) notes.push(askFirstNote(askSkill))
     if (picked.length) {
       notes.push(
         "Habits to keep in mind for this request (from the user's lessons, picked automatically: act on the ones " +

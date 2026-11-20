@@ -1,6 +1,6 @@
 ---
 name: acaf-prompt
-description: "Write instructions that another model will follow, and test them on that model before saying they work: a system prompt in a product (a writer, a checker or judge, a prompt-writer for an image model), a rules file a model reads, or a brief for a subagent. Use whenever you write or change text a model will act on. Covers what the model must and must not be told, the wording traps that models fall into, and a short test with the real model on hard real cases. Not for docs that only people read."
+description: "Write instructions that another model will follow, and test them on that model before saying they work: a system prompt in a product (a writer, a checker or judge, a prompt-writer for an image model), a rules file a model reads, or a brief for a subagent. Use whenever you write or change text a model will act on. Covers what the model must and must not be told, the wording traps that models fall into, and a short test with the real model on hard real cases. Not for docs that only people read. For projects that use the ACAF method (an acaf/ folder); in other projects use test-prompt, the same skill without the ACAF name."
 ---
 
 # ACAF Prompt: instructions another model will follow
