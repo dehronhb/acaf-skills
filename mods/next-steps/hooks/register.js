@@ -1,7 +1,10 @@
+import { memoryKeeper, memoryCondensed, memoryLateNotes } from "./memory.js"
 // The next-steps mod. It loads in every session (ACAF projects and others, Snugit included) and
 // does six jobs: the panel and the reply checks (done, habit, ending, proof) after each reply (1, 2), habit reminders when
 // the user sends a message (3), the judgment-in-code and gut checks after tool calls (4, 5), and a
-// warning after a message goes to other people (6).
+// warning after a message goes to other people (6). It also runs the memory keeper (memory.js: saves lasting facts the
+// user states, points the agent at saved notes on what a message is about, and shares saves between chats), only in
+// projects named in ~/.claude/memory-keeper.json; see the top of memory.js.
 //
 // 1. The panel: a plain-language panel above the prompt, so the user can see at a glance what
 //    Claude is waiting on.
@@ -1544,7 +1547,13 @@ export function register(on) {
     const fromPerson =
       !kind || ['composer', 'bridge', 'sdk', 'unclassified'].includes(kind) || (kind === 'plugin' && e.origin.asUser)
     if (['composer', 'bridge'].includes(kind) || (kind === 'plugin' && e.origin.asUser)) personArrived($)
-    if (e.text && isCompactionSummary(e.text)) latestCondensing = e.text.slice(0, 5000)
+    if (e.text && isCompactionSummary(e.text)) {
+      latestCondensing = e.text.slice(0, 5000)
+      // Notes the memory keeper brought back were condensed away too, so they may be brought back again.
+      try {
+        memoryCondensed(String(await $.session.id()))
+      } catch {}
+    }
     if (fromPerson && e.text) commentTurn = e.text.trimStart().startsWith(ARTIFACT_COMMENT)
     if (!fromPerson || !e.text || !e.text.trim() || isCompactionSummary(e.text) || (await isAppCall($))) return next(e)
     lastPersonAt = await nowMs($)
@@ -1553,15 +1562,35 @@ export function register(on) {
     lastNudgeAt = 0
     condensingsSincePerson = 0
     workLog.push({ at: lastPersonAt, isUser: true, line: stamp(lastPersonAt) + ' user: ' + e.text.replace(/\s+/g, ' ').slice(0, 800) })
+    // The memory keeper (memory.js) runs at the same time as the habit pick, so it adds no wait unless it saves.
+    const keeperRun = (async () => {
+      let session = ''
+      try {
+        session = String(await $.session.id())
+      } catch {}
+      let lastReply = ''
+      try {
+        const last = [...(await $.session.messages())].reverse().find((m) => m.role === 'assistant' && m.text)
+        lastReply = last ? last.text : ''
+      } catch {}
+      const run = await memoryKeeper($, { text: e.text, lastReply, session })
+      // A background save from an earlier message that finished after that turn's last tool step.
+      const late = memoryLateNotes(session)
+      return { notes: [...late.notes, ...run.notes], log: [late.log, run.log].filter(Boolean).join('; ') }
+    })()
     const memoryNote = await memoryIndexNote($)
     const habits = await loadHabits($)
-    if (!habits.length && !memoryNote) return next(e)
-    const { picked, askFirst } = habits.length ? await pickHabits($, e.text, habits) : { picked: [], askFirst: false }
+    const [{ picked, askFirst }, keeper] = await Promise.all([
+      habits.length ? pickHabits($, e.text, habits) : Promise.resolve({ picked: [], askFirst: false }),
+      keeperRun.catch((err) => ({ notes: [], log: 'memory keeper failed: ' + String(err && err.message ? err.message : err).slice(0, 160) })),
+    ])
+    if (keeper.log) await debugLog($, keeper.log + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
+    if (!habits.length && !memoryNote && !keeper.notes.length) return next(e)
     // The screen it ran on (e.g. "desktop"), so the log shows the no-screen skip is not catching real sessions.
     const screens = await $.session.surfaces().then((s) => s.join(','), () => '?')
     const askSkill = askFirst ? ((await inAcafProject($)) ? 'acaf-grill' : 'ask-first') : ''
     await debugLog($, 'habit reminder [' + screens + ']: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first (' + askSkill + ')' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
-    const notes = []
+    const notes = [...keeper.notes]
     if (memoryNote) notes.push(memoryNote)
     if (askFirst) notes.push(askFirstNote(askSkill))
     if (picked.length) {
@@ -1580,6 +1609,12 @@ export function register(on) {
     const result = (await next(e)) || {}
     if (e.agent_id || (await isAppCall($))) return result
     const notes = []
+    // The memory keeper's background save, once it has finished: the agent says "Saved to memory" in this reply.
+    try {
+      const late = memoryLateNotes(String(await $.session.id()))
+      if (late.log) await debugLog($, late.log)
+      notes.push(...late.notes)
+    } catch {}
     const codeNote = await judgmentCodeNote($, e.tool_name, e.tool_input)
     if (codeNote) notes.push(codeNote)
     const promptCheck = await promptNote($, e.tool_name, e.tool_input)
