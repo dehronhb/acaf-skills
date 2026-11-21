@@ -397,6 +397,39 @@ const HABIT_CHECK_ADDITION = [
 // this repo; 2 runs each, Sonnet): moments he later complained about, 5 of 20 caught before, 10 of 20 after; messages
 // he accepted, 29 of 30 quiet both times (the one flip: "go ahead and continue" before a sign-in option was added).
 // Rerun that set before changing this prompt.
+// The steps check (2026-11-21). Agents handing the user chores they could do was the one problem still rising in
+// mid-November. Round 2 of the problems review read 25 such moments: in 10 the agent could have done it all itself and
+// in 7 partly; only 8 were truly the user's (sign-ins, secrets, his taste). The two big causes: the last stage of a job
+// touches a page or app, so the agent writes numbered steps instead of driving it; and holds the user never set ("the
+// review buttons are yours" after he said "pull it back and resend"). No check covered it: the user's rule for it sits
+// outside the habit list the done check reads. So the same done-check call lists the steps a reply hands the user.
+// Measured 2026-11-21 on the standing test set (private, outside this repo), 2 runs each, Sonnet: on 8 real moments
+// where the agent could have done the chore, 9 of 16 runs sent it back (2 of 16 before); over all 37 done cases, 20 of
+// 38 flag runs caught (8 before) and 32 of 36 quiet runs left quiet (31 before); no case that passed before failed.
+// Its known slip: now and then it lists a choice ("answer whether X") as a step. Rerun that set before changing this.
+const STEPS_CHECK_ADDITION = [
+  '',
+  'Also list the steps the reply asks the person to do themselves. Add a field "handedSteps" beside "claims": [] when',
+  'it asks them to do nothing, otherwise at most 4 items {"step": "...", "onlyThem": true | false, "why": "..."}:',
+  '- step: what they are asked to do, in at most 12 plain words. Leave out of the list entirely: choosing or deciding',
+  '  between options, answering a question, approving or saying yes or no, and replying with a word ("say go"). Those',
+  '  are choices for the person, not chores. A step is an action they carry out: open, click, run, close, set up, check.',
+  '- onlyThem: true only when the agent could not do it for them: signing in; typing a password, token, key or other',
+  '  secret; paying or buying; judging how something looks or feels; something on their own phone or other device the',
+  '  agent cannot reach; an action other people will see or that is hard to undo, when the person has not already',
+  '  asked for it in their messages. Otherwise false: opening a page, clicking through a site, running a command,',
+  '  pressing a button, closing a window, merging, deploying, resetting test data, finding something out. The agent',
+  '  has a shell, a browser it can drive, and usually screen control and helper agents, so "it is a website" or "it',
+  '  is a button" is not a reason. When the person already asked for the action ("pull it back and resend"), that is',
+  '  their yes: false.',
+  '- why: for false, what the agent could have used, at most 15 words; for true, which of the reasons above.',
+  'When unsure whether only they could do it, true.',
+  'Examples (illustrations only, not wording to reuse):',
+  '"Say go and I will push it." -> [] (a yes, not a step)',
+  '"Open the admin site in your browser and press Reset on each test business." -> onlyThem false (it can drive the browser)',
+  '"Sign in to App Store Connect in the browser pane, then tell me." -> onlyThem true (a sign-in)',
+].join('\n')
+
 const HABIT_PICK_SYSTEM = [
   "You help an AI coding agent remember the user's habits at the moment they matter. You get the habit list,",
   "the agent's last message, and the user's new message. You are not the agent: never answer or act on the",
@@ -1097,13 +1130,13 @@ async function doneCheck($, answer) {
       $.model.complete({
         model: DONE_CHECK_MODEL,
         effort: 'low',
-        system: DONE_CHECK_SYSTEM + (habits.length ? HABIT_CHECK_ADDITION : ''),
+        system: DONE_CHECK_SYSTEM + (habits.length ? HABIT_CHECK_ADDITION : '') + STEPS_CHECK_ADDITION,
         prompt:
           "The agent's final reply:\n" + clip(answer, 4000) +
           (logged ? '\n\nIts steps in this session, oldest first (the last 8 hours):\n' : '\n\nIts steps in the last few turns:\n') +
           (steps || '(none)') +
           (habits.length ? "\n\nThe user's habits:\n" + numbered(habits) : ''),
-        maxTokens: 800,
+        maxTokens: 1000,
         timeoutMs: 60000,
       }),
       endingCheck($, answer),
@@ -1125,6 +1158,9 @@ async function doneCheck($, answer) {
     const claim = wrong ? wrong.claim : ''
     const needsCheck = Boolean(wrong)
     const broken = typeof verdict.brokenHabit === 'string' ? verdict.brokenHabit.trim() : ''
+    const stepsHanded = (Array.isArray(verdict.handedSteps) ? verdict.handedSteps : [])
+      .filter((x) => x && typeof x.step === 'string' && x.step.trim())
+    const agentSteps = stepsHanded.filter((x) => x.onlyThem === false)
     const why = typeof verdict.why === 'string' ? verdict.why.trim() : ''
     const tokens = reply && reply.usage ? reply.usage.input_tokens + (reply.usage.cache_read_input_tokens || 0) : '?'
     // The proof check needs the panel's buttons, which come a few seconds after the reply.
@@ -1144,10 +1180,11 @@ async function doneCheck($, answer) {
       'reply check (' + tokens + ' tokens in): ' +
         (claims.length ? claims.map((c) => c.status + ': ' + c.claim + (c.evidence ? ' [' + c.evidence + ']' : '')).join('; ') : 'no claim') +
         (broken ? ' | HABIT: ' + broken + ' (' + why + ')' : '') +
+        (stepsHanded.length ? ' | STEPS: ' + stepsHanded.map((x) => (x.onlyThem === false ? 'agent: ' : 'theirs: ') + x.step + (x.why ? ' (' + x.why + ')' : '')).join('; ') : '') +
         (ending ? ' | ENDING: ' + ending.missing + (gap ? '' : ' (user already replied)') : '') +
         (proof.length ? ' | PROOF: ' + proof.map((p) => p.say + ': ' + p.note).join('; ') : ''),
     )
-    if (!needsCheck && !broken && !gap && !proof.length) return
+    if (!needsCheck && !broken && !agentSteps.length && !gap && !proof.length) return
     // Everything found goes back in one message (one send-back per reply), most serious first.
     const parts = []
     let notice
@@ -1160,6 +1197,17 @@ async function doneCheck($, answer) {
           'right, or the output is about something else, say so in one line and carry on.',
       )
       notice = { kind: 'done', label: claim }
+    }
+    if (agentSteps.length) {
+      parts.push(
+        'Steps check: your last reply hands the user ' + (agentSteps.length === 1 ? 'a step' : 'steps') + ' you could do ' +
+          'yourself: ' + agentSteps.map((x) => '"' + x.step.trim() + '"' + (x.why ? ' (' + String(x.why).trim() + ')' : '')).join('; ') +
+          '. Do ' + (agentSteps.length === 1 ? 'it' : 'them') + ' now, then tell the user in a line what you did. Hand them ' +
+          'only what only they can do (a sign-in, a secret, a purchase, judging how it looks, their own device, or a ' +
+          'yes they have not given yet), and say why in a few words. If a tool you need was refused or failed, say ' +
+          'which, in one line.',
+      )
+      notice = notice || { kind: 'steps', label: agentSteps[0].step.trim() }
     }
     if (broken) {
       parts.push(
@@ -1700,6 +1748,10 @@ export function register(on) {
             ? n.isSent
               ? '🔎 Proof check: the "' + n.label + '" choice rests on something not yet proved. The agent is checking it now.'
               : '⚠ The "' + n.label + '" choice rests on something nobody proved yet.'
+          : n.kind === 'steps'
+            ? n.isSent
+              ? '🔎 Steps check: the agent handed you a step it can do itself. It is doing it now.'
+              : '⚠ The agent handed you a step it can do itself: ' + n.label + '.'
           : n.kind === 'ending'
             ? n.isSent
               ? '🔎 Ending check: the reply left out what you need to choose. The agent is adding it now.'

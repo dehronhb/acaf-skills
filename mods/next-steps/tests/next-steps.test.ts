@@ -262,6 +262,44 @@ test('a checked claim passes and the normal panel shows', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /Fixed the login bug/ })).toBeDefined()
 })
 
+test('a step handed to the user that the agent could do itself sends the agent back to do it', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  stubDoneCheck(on, { claims: [], handedSteps: [{ step: 'Press Reset on the four test businesses', onlyThem: false, why: 'it can drive the browser' }] }, calls)
+
+  await finishTurn($, clock, 'Open the admin site and press Reset on each test business.')
+  expect(sent.length).toBe(1)
+  expect(sent[0]).toContain('Steps check')
+  expect(sent[0]).toContain('Press Reset on the four test businesses')
+  expect(sent[0]).toContain('only they can do')
+})
+
+test('a sign-in handed to the user is left alone by the steps check', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  stubDoneCheck(on, { claims: [], handedSteps: [{ step: 'Sign in to App Store Connect in the browser pane', onlyThem: true, why: 'a sign-in' }] }, calls)
+
+  await finishTurn($, clock, 'Please sign in to App Store Connect in the browser pane, then tell me.')
+  expect(calls.done).toBe(1)
+  expect(sent.length).toBe(0)
+})
+
 test("the reply to a done-check prompt is not checked again, so it can't loop", async ($, on) => {
   const clock = mock.clock(on)
   const calls = { done: 0 }
