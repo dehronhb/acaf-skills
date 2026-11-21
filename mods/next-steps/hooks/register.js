@@ -237,6 +237,14 @@ const DONE_CHECK_SYSTEM = [
 // rewrite on Opus: 0 of 30. The replies he couldn't follow read as complete to a judge who sees only the reply: his
 // confusion depends on what he knows at that moment. So the prompt was kept, and a fix has to come from elsewhere
 // (how agents write, or a way for him to ask for a plain re-explanation), not from more wording here.
+// 2026-11-21, a third approach on the same set: the judge also got the user's own last 20 messages in the chat, with
+// rules for names he never used and findings he was never shown. 0 of 30 caught, 30 of 30 quiet. So more input
+// does not fix it either; it was not shipped. Don't retry a judge for this without a new kind of evidence.
+//
+// Also tried 2026-11-21 and not shipped: a "handover" field in the done check (did a step open the exact thing the
+// user will open, the way they will?). On the done cases: 7 of 22 caught against 6, and it never answered "no".
+// The misses need facts the checker doesn't have, such as which app the user's desktop shortcut opens, or a stale
+// copy in their browser.
 const ENDING_CHECK_MODEL = 'sonnet'
 const ENDING_CHECK_SYSTEM = [
   "You check the end of an AI coding agent's final reply, for one person who reads mostly the last message and then",
@@ -437,6 +445,48 @@ const askFirstNote = (skill) => [
 
 // True when the session's folder, or one of up to 5 folders above it, has an acaf/ folder: the ACAF mod's own
 // test for an ACAF project. False when it can't tell, so the note falls back to the skill every project may use.
+// The memory index warning (2026-11-21). Claude Code loads only the first 24.4 KB of a project's memory index
+// (~/.claude/projects/<folder>/memory/MEMORY.md) into each chat, and new memories are added at the bottom, so once an
+// index grows past that, the newest lessons are the ones no chat sees. One project's index reached 27.7 KB and a repeat
+// complaint traced to an entry that was cut off. Claude Code's own warning sits in the chat's context, where agents
+// passed over it. So once per session, when the index is past MEMORY_WARN_BYTES (leaving room before the limit), the
+// agent is told to shorten it at a natural break. The size is exact, so code checks it; nothing here judges content.
+// It never says to delete entries: shortening the one-line hooks, with the facts kept in the linked files, is enough.
+const MEMORY_LOAD_LIMIT = '24.4 KB'
+const MEMORY_WARN_BYTES = 21000
+// The sessions and index files already warned about, so each chat hears it once.
+const memoryWarned = new Set()
+const projectFolder = (dir) => dir.replace(/[^a-zA-Z0-9]/g, '-')
+async function memoryIndexNote($) {
+  try {
+    let session = ''
+    try {
+      session = String(await $.session.id())
+    } catch {}
+    const home = await $.env.get('USERPROFILE')
+    const cwd = await $.session.cwd()
+    if (!home || !cwd) return ''
+    // A worktree chat shares its main folder's memory; try the worktree's own folder first, then the main one.
+    const dirs = [cwd, cwd.replace(/[\\/]\.claude[\\/]worktrees[\\/].*$/, '')]
+    for (const dir of dirs) {
+      const file = home + '/.claude/projects/' + projectFolder(dir) + '/memory/MEMORY.md'
+      if (memoryWarned.has(session + '|' + file) || !(await $.fs.exists(file))) continue
+      const text = await $.fs.read(file)
+      const bytes = typeof TextEncoder === 'function' ? new TextEncoder().encode(text).length : text.length
+      memoryWarned.add(session + '|' + file)
+      if (bytes <= MEMORY_WARN_BYTES) return ''
+      return (
+        "This project's memory index (" + file + ') is ' + (bytes / 1024).toFixed(1) + ' KB. Claude Code loads only ' +
+        'the first ' + MEMORY_LOAD_LIMIT + ' of it into each chat, and new entries go at the bottom, so they are the ' +
+        'first to be cut. At a natural break in this task, shorten it to under about 19 KB: make each line one short ' +
+        'hook pointing to its file, and move any fact that lives only in a hook into its file first. Delete no entry. ' +
+        'Other chats may write to the index, so re-read it just before writing. Then say in one line that you did it.'
+      )
+    }
+  } catch {}
+  return ''
+}
+
 async function inAcafProject($) {
   try {
     let dir = await $.session.cwd()
@@ -507,6 +557,13 @@ let suggestion = ''
 let summarizedWithSuggestion = false
 let doneNotice = null
 let replyAnswersCheck = false
+// Main-loop turns whose start was heard, and whether each was started by one of this mod's check messages. A turn
+// that answers a check is not checked again. Knowing it from the turn's own start text, rather than "the next turn
+// after a check was sent", matters when a background notice starts a turn just as a check is sent: that turn used to
+// be taken for the answer, and the real answer was then checked again, so one reply drew two follow-ups (seen
+// 2026-11-21). replyAnswersCheck stays the fallback for a turn whose start wasn't heard.
+const startedTurns = new Map()
+const isCheckMessage = (text) => typeof text === 'string' && /\[Automatic [a-z]+ check from the next-steps mod/.test(text.slice(0, 400))
 // The reply a check sent the agent back on. Its answer says an open question still stands without repeating it, so
 // the panel reads this reply too, to keep the options on show.
 let answerBeforeCheck = ''
@@ -540,6 +597,8 @@ let picturesNoted = 0
 // step. Past BIG_OUTPUT_TOKENS (estimated as characters / 4, pictures left out), the agent is reminded once
 // per stretch between condensings. Framed as memory, never cost.
 const BIG_OUTPUT_TOKENS = 20000
+// Tools whose result the agent sees only as a short confirmation, whatever the hook's copy of the result holds.
+const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 let bigOutputNoted = false
 const BIG_OUTPUT_NOTE = (tool, tokens) =>
   'Big output check (from the next-steps mod, not the user): that ' + tool + ' result put about ' +
@@ -1138,6 +1197,10 @@ async function doneCheck($, answer) {
     // twice (the user, 2026-10-24), and repeated questions got read three times over (audit, 2026-11-03). The panel
     // keeps the options, because summarize is given the reply before the check. Details go in a file, linked.
     // The exception is a question the ending or proof check found lacking: then it is asked again, complete.
+    // An open question is still asked again in brief (2026-11-21): the user reads only the last message, and a
+    // review of 25 replies the user couldn't follow found that in 6 the last thing they saw was a follow-up saying "my
+    // question above still stands". So the question comes back as one line plus a few words per option, never
+    // the whole reply.
     const label = notice.kind + ' check'
     const reask = Boolean(gap || proof.length)
     const text =
@@ -1151,13 +1214,13 @@ async function doneCheck($, answer) {
           '(money, time, risk) and your pick, and say plainly anything it rests on that is not checked yet. Write it ' +
           'for someone who is both their product manager and their engineering manager (what the customer gets and ' +
           'when, and what the code or product would owe later; not code). Plain words; explain any label in a few words.\n'
-        : '3. End with what the user can do next, if they have a choice: each option with what it gets them, what it ' +
-          'costs (money, time, risk) and your pick, written for someone who is both their product manager and their ' +
-          'engineering manager (what the customer gets and when, and what the code or product would owe later; not ' +
-          'code). If your last reply asked them something and the check changes nothing about it, don\'t repeat the ' +
-          'question or its options: they are on screen above and in the panel, so say in one line that it still ' +
-          'stands. If the check does change it, give only that question, updated. If there is no choice, say what ' +
-          'happens next in one line.\n') +
+        : '3. End with what the user can do next, so this message stands on its own: the user reads only the last ' +
+          'message. If your last reply asked them something and the check changes nothing about it, ask it again in ' +
+          'brief: the question in one line, then each option in a few words, your pick first. The details stay ' +
+          'above, so don\'t copy them. If the check changes the question, ask the updated question: each option with ' +
+          'what it gets them, what it costs (money, time, risk) and your pick, written for someone who is both their ' +
+          'product manager and their engineering manager (what the customer gets and when, and what the code or ' +
+          'product would owe later; not code). If there is no choice, say what happens next in one line.\n') +
       'Longer findings (logs, measurements, file lists) go in a file in the project or session folder, linked in ' +
       'one line, not in the message.'
     answerBeforeCheck = answer
@@ -1368,6 +1431,8 @@ function personArrived($) {
 export function register(on) {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) {
+      if (e.turnId) startedTurns.set(e.turnId, isCheckMessage(e.text))
+      if (startedTurns.size > 50) startedTurns.delete(startedTurns.keys().next().value)
       summary = null
       suggestion = ''
       if (doneNotice && !doneNotice.isSent) doneNotice = null
@@ -1408,7 +1473,10 @@ export function register(on) {
     const answer = e.answer
     lastAnswer = answer
     let before = ''
-    if (replyAnswersCheck) {
+    const heard = Boolean(e.turnId) && startedTurns.has(e.turnId)
+    const answersCheck = heard ? startedTurns.get(e.turnId) : replyAnswersCheck
+    if (e.turnId) startedTurns.delete(e.turnId)
+    if (answersCheck) {
       // This reply answers a done-check prompt: show it, but don't check it again.
       replyAnswersCheck = false
       doneNotice = null
@@ -1437,14 +1505,16 @@ export function register(on) {
     lastNudgeAt = 0
     condensingsSincePerson = 0
     workLog.push({ at: lastPersonAt, isUser: true, line: stamp(lastPersonAt) + ' user: ' + e.text.replace(/\s+/g, ' ').slice(0, 800) })
+    const memoryNote = await memoryIndexNote($)
     const habits = await loadHabits($)
-    if (!habits.length) return next(e)
-    const { picked, askFirst } = await pickHabits($, e.text, habits)
+    if (!habits.length && !memoryNote) return next(e)
+    const { picked, askFirst } = habits.length ? await pickHabits($, e.text, habits) : { picked: [], askFirst: false }
     // The screen it ran on (e.g. "desktop"), so the log shows the no-screen skip is not catching real sessions.
     const screens = await $.session.surfaces().then((s) => s.join(','), () => '?')
     const askSkill = askFirst ? ((await inAcafProject($)) ? 'acaf-grill' : 'ask-first') : ''
     await debugLog($, 'habit reminder [' + screens + ']: ' + (picked.length ? picked.length + ' habit(s)' : 'none') + (askFirst ? ', ask first (' + askSkill + ')' : '') + ' for: ' + e.text.replace(/\s+/g, ' ').slice(0, 80))
     const notes = []
+    if (memoryNote) notes.push(memoryNote)
     if (askFirst) notes.push(askFirstNote(askSkill))
     if (picked.length) {
       notes.push(
@@ -1469,8 +1539,12 @@ export function register(on) {
     // Count the pictures this step put into the conversation (a picture is an "image" part of the result).
     const response = JSON.stringify(e.tool_response || '')
     picturesSinceCondense += (response.match(/"type"\s*:\s*"image"/g) || []).length
-    // The result's size in tokens, estimated, with picture data left out (pictures are counted above).
-    const outputTokens = response.replace(/"(data|base64)"\s*:\s*"[^"]{200,}"/g, '""').length / 4
+    // The result's size in tokens, estimated, with picture data left out (pictures are counted above). A file edit's
+    // result carries the whole file for hooks, but the agent's conversation gets only a one-line confirmation, so
+    // edits never count (a false alarm on every edit to a big file, seen 2026-11-21).
+    const outputTokens = EDIT_TOOLS.includes(e.tool_name)
+      ? 0
+      : response.replace(/"(data|base64)"\s*:\s*"[^"]{200,}"/g, '""').length / 4
     if (!bigOutputNoted && outputTokens > BIG_OUTPUT_TOKENS) {
       bigOutputNoted = true
       await debugLog($, 'big output check: ' + e.tool_name + ' result about ' + Math.round(outputTokens) + ' tokens')

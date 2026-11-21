@@ -277,6 +277,35 @@ test("the reply to a done-check prompt is not checked again, so it can't loop", 
   expect(calls.done).toBe(1)
 })
 
+test('a background turn that ends just after a check is sent is checked itself, and the real answer to the check is not', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls = { done: 0 }
+  const sent: string[] = []
+  stubBand(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('agent.list', () => ({ value: [] }))
+  on('prompt.submit', ($, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  stubDoneCheck(on, { claims: [{ claim: 'the login bug is fixed', evidence: '13:05 npm test -> 1 failed', status: 'contradicted' }] }, calls)
+
+  await $.turn.start({ turnId: 't1', text: 'Fix the login bug.' })
+  await finishTurn($, clock, 'Fixed the login bug.')
+  expect(sent.length).toBe(1)
+  // A background notice's turn ends before the check's own turn: it is a reply of its own, so it is checked.
+  await $.turn.start({ turnId: 'bg', text: '<task-notification>helper finished</task-notification>' })
+  await $.turn.complete({ turnId: 'bg', answer: 'The helper finished; still waiting on one more.', durationMs: 1000, isAborted: false, usage: null })
+  await clock.advance(2500)
+  expect(calls.done).toBe(2)
+  // The turn the check started answers it: not checked again.
+  await $.turn.start({ turnId: 'ans', text: sent[0] })
+  await $.turn.complete({ turnId: 'ans', answer: 'I ran the tests: one still fails, so it is changed, not yet working.', durationMs: 1000, isAborted: false, usage: null })
+  await clock.advance(2500)
+  expect(calls.done).toBe(2)
+})
+
 test('if the check prompt cannot be sent, the panel says the claim is not checked', async ($, on) => {
   const clock = mock.clock(on)
   const calls = { done: 0 }
@@ -372,6 +401,49 @@ test('outside an ACAF project the ask-first note names ask-first, never acaf-gri
   await $.prompt.submit({ text: 'Add a screen for sharing a claim with a friend.', wait: false, origin: { kind: 'composer' } })
   expect(seen[0].context[0]).toContain('Follow the ask-first skill')
   expect(seen[0].context[0]).not.toContain('acaf')
+})
+
+test("a project memory index past the warning size gets one note per session to shorten it, found from a worktree too", async ($, on) => {
+  const seen = []
+  mock.env(on, { USERPROFILE: '/home' })
+  on('session.id', () => ({ value: 'memory-test' }))
+  on('session.cwd', () => ({ value: 'C:\\dev\\work\\app\\.claude\\worktrees\\busy-fox' }))
+  const BIG = '- [A fact](a.md) — ' + 'x'.repeat(120) + '\n'
+  const index = BIG.repeat(200)
+  // The worktree's own folder has no index; the main folder's does.
+  on('fs.exists', ($, e) => ({ value: /projects[\\/]C--dev-work-app[\\/]memory[\\/]MEMORY\.md$/.test(e.path) }))
+  on('fs.read', () => ({ value: index }))
+  on('session.messages', () => ({ value: [] }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: '{"pick": [], "askFirst": false}', usage: USAGE } }))
+  on('prompt.submit', ($, e) => {
+    seen.push(e)
+    return { text: e.text }
+  })
+
+  await $.prompt.submit({ text: 'Carry on with the build.', wait: false, origin: { kind: 'composer' } })
+  const note = (seen[0].context || []).join(' ')
+  expect(note).toContain('C--dev-work-app/memory/MEMORY.md')
+  expect(note).toContain('24.4 KB')
+  expect(note).toContain('Delete no entry')
+  await $.prompt.submit({ text: 'And the next part.', wait: false, origin: { kind: 'composer' } })
+  expect((seen[1].context || []).join(' ')).not.toContain('MEMORY.md')
+})
+
+test('a small project memory index gets no note', async ($, on) => {
+  const seen = []
+  mock.env(on, { USERPROFILE: '/home' })
+  on('session.cwd', () => ({ value: 'C:/dev/work/app' }))
+  on('fs.exists', ($, e) => ({ value: /MEMORY\.md$/.test(e.path) }))
+  on('fs.read', () => ({ value: '- [A fact](a.md) — short\n'.repeat(40) }))
+  on('session.messages', () => ({ value: [] }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: '{"pick": [], "askFirst": false}', usage: USAGE } }))
+  on('prompt.submit', ($, e) => {
+    seen.push(e)
+    return { text: e.text }
+  })
+
+  await $.prompt.submit({ text: 'Carry on with the build.', wait: false, origin: { kind: 'composer' } })
+  expect((seen[0].context || []).join(' ')).not.toContain('MEMORY.md')
 })
 
 test("another program's claude -p call (no screen) gets no notes and no model call", async ($, on) => {
@@ -515,6 +587,9 @@ test('a huge step result gets the big-output reminder once; small results and pi
   const notes = async (step) => (((await $.classic.PostToolUse(step)) || {}).additionalContext || []).filter((n: string) => n.includes('Big output check'))
   expect(await notes(small)).toEqual([])
   expect(await notes(picture)).toEqual([])
+  // An edit's result holds the whole file for hooks, but the agent sees one line: never counted.
+  const edit = { tool_name: 'Edit', tool_input: { file_path: 'big.js' }, tool_response: { filePath: 'big.js', originalFile: 'line\n'.repeat(30000) } }
+  expect(await notes(edit)).toEqual([])
   const first = await notes(big)
   expect(first.length).toBe(1)
   expect(first[0]).toContain('about 45,000 tokens')
@@ -803,7 +878,7 @@ test('a turn started by an artifact comment skips the done check; the next turn 
   expect(calls.done).toBe(1)
 })
 
-test('a send-back tells the agent not to re-list its question, and the panel still reads the reply before the check', async ($, on) => {
+test('a send-back asks the open question again in brief, and the panel still reads the reply before the check', async ($, on) => {
   const clock = mock.clock(on)
   const sent: string[] = []
   const summaryPrompts: string[] = []
@@ -827,7 +902,8 @@ test('a send-back tells the agent not to re-list its question, and the panel sti
 
   await finishTurn($, clock, 'The tests pass. Ship today or tomorrow?')
   expect(sent.length).toBe(1)
-  expect(sent[0]).toContain("don't repeat the question or its options")
+  expect(sent[0]).toContain('ask it again in brief')
+  expect(sent[0]).not.toContain('still stands')
 
   summaryPrompts.length = 0
   await finishTurn($, clock, 'Two tests fail, so I fixed them. That question still stands.')
