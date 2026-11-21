@@ -27,7 +27,8 @@ leaves choices about that open. Two things that count, though they are easy to m
   chosen, but the staff page for writing announcements was built without a question; it came back with audience
   choices nobody wanted, no way to upload a picture, and a broken preview.
 - **A new screen inside an approved plan.** An approved feature or slice plan says what the screen must do, not
-  how it looks or flows. Show a mockup of each new screen and settle its choices before building it. *Real
+  how it looks or flows. Show a mockup of each new screen (built the way the `mockup-board` skill says: a
+  zoomable board with working prototypes and switches) and settle its choices before building it. *Real
   case:* a DM's world screens built straight from an approved plan felt "like filling out a government form".
   (Not: a mockup for every small change to a screen the user has already seen.)
 
