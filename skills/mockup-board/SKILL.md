@@ -46,12 +46,18 @@ may lay the samples side by side on a board, but they need no prototype.
 One HTML page, published as a private artifact (the claude-artifacts tools), that opens on a dotted canvas.
 
 1. **Moves like Miro.** Ctrl+wheel zooms at the pointer (a trackpad pinch arrives as Ctrl+wheel in browsers, so it
-   works too). The plain wheel and dragging the background pan. There are Fit, +, − and a zoom percentage, and a
-   "Sections" list that glides the view to a section. Escape or Fit returns to the whole board.
-2. **Sections, one per thing to judge.** Each section is a titled frame showing one feature, one option or one
+   works too). The plain wheel and dragging the background pan. There are Fit, +, − and a zoom percentage. Escape or Fit returns to the
+   whole board.
+2. **A table of contents, top left.** A small panel in the top left corner lists every section by number and name
+   ("1. Your projects", "2. While Claude works"). Clicking an entry glides the view to that section. It is open when
+   the board loads, a "Sections" button hides and shows it, and Fit keeps sections from sitting under it. On a
+   narrow window (under about 1500 px) it may start hidden, with the button in view. Why: the user (2026-11-22)
+   liked "a cool little index or table of contents like in the top left corner" on the first board, as "a good way
+   to shortcut to different sections of the board".
+3. **Sections, one per thing to judge.** Each section is a titled frame showing one feature, one option or one
    state. A "Start here" section, top left, says in a few lines what the board is for, how to move ("hold Ctrl and
    use the mouse wheel to zoom; drag to move"), and lists each question with the section that answers it.
-3. **A working prototype inside each section.** Buttons, cards, menus, typing, sliders and opening and closing work
+4. **A working prototype inside each section.** Buttons, cards, menus, typing, sliders and opening and closing work
    the way the real screen will, using the gestures of the app it imitates. For the look:
    - an app with a built style sheet: copy it in;
    - an app with no style sheet to copy (a native desktop app, for example): match its look by hand from
@@ -60,7 +66,7 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
    Content is real-looking: the project's test data when it has some, otherwise content written to fit what the
    project is for. Never placeholder text ("lorem ipsum", "Item 1"). Mark anything written only for the mockup as
    sample text.
-4. **Every choice you ask about can be tried on the board.** Label options with letters (A, B, C) so the user can
+5. **Every choice you ask about can be tried on the board.** Label options with letters (A, B, C) so the user can
    answer in one line, for example "1: B, 2: A", and mark your pick. Which form an option takes:
    - Options that change one part of a screen (a colour, a wording, showing or hiding a feature) are a switch or a
      set of buttons inside that screen's section, labelled with what it changes and set to your pick.
@@ -68,11 +74,11 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
      "Timeline B"), so both can be seen and used at once.
    - When the user asks to see two things ("show me both"), they always get their own sections, side by side, even
      when the difference is only a colour: their asking to compare wins over the switch rule above.
-5. **Readable where it lands.** When the Sections list jumps to a section, the body text there reads at normal
+6. **Readable where it lands.** When the table of contents jumps to a section, the body text there reads at normal
    size (about 12 px on screen or larger), and the whole section fits in the window at 1280 and 1920 px wide. At
    Fit, every section name reads in full.
-6. **Matches the app's themes.** If the app has light and dark, the board has a theme button and both look right.
-7. **Always a reset.** Every section with a prototype has a "↺ Reset this screen" button in the same place (top
+7. **Matches the app's themes.** If the app has light and dark, the board has a theme button and both look right.
+8. **Always a reset.** Every section with a prototype has a "↺ Reset this screen" button in the same place (top
    right of the section). It puts that one prototype and its switches back to how they started, without reloading
    the page or touching other sections. The "Start here" section says where it is. Why: the user (2026-11-21) asked
    for "always offering a reset button" after clicking Approve inside a prototype left no way to try that screen
@@ -89,7 +95,7 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
 ## Check it before the user sees it
 
 1. **Use it the way the user will.** Open it in the built-in browser and use real input: Ctrl+wheel over a card,
-   drag the background, click each Sections entry, every switch and every control inside the prototypes. Then
+   drag the background, click each table-of-contents entry, every switch and every control inside the prototypes. Then
    press each section's reset and check it looks exactly as it did on first load. If a gesture the reference app
    has does nothing, the board is not ready.
 2. **A fresh look.** Freeze screenshots of each section at the zoom its jump lands on, plus Fit, in each theme, at
