@@ -60,6 +60,20 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
 3. **Sections, one per thing to judge.** Each section is a titled frame showing one feature, one option or one
    state. A "Start here" section, top left, says in a few lines what the board is for, how to move ("hold Ctrl and
    use the mouse wheel to zoom; drag to move"), and lists each question with the section that answers it.
+
+   **Every other section opens with a "Why this section" block**, right under its title, before any description
+   of how the screen works. It is at most two short lines, in the same place and the same format on every
+   section, with three parts:
+   - *What it's for:* the story or need, in a person's terms ("Someone wants to understand her brother's view
+     before a family dinner"), not what the screen does.
+   - *Where it came from:* "you asked" with the user's words, "from the user stories", or "my own idea, not asked
+     for". Flag the last one plainly.
+   - *What to decide:* the question and its letters, or "nothing to decide, just try it".
+
+   Two option sections that answer the same question (for example 4A and 4B) can share one purpose: the second
+   says "Compare with 4A" instead of repeating it. Why this exists: a section that only said how its screen worked
+   left the user asking "I don't really understand what the point of this section of the board is for" (2026-11-22).
+   It was an idea nobody had asked for, and the section never said so.
 4. **A working prototype inside each section.** Buttons, cards, menus, typing, sliders and opening and closing work
    the way the real screen will, using the gestures of the app it imitates. For the look:
    - an app with a built style sheet: copy it in;
