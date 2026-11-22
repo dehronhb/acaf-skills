@@ -1072,7 +1072,7 @@ function stubChecks(on, { claims = [] as any[], notes = [] as any[], ending = nu
       text = JSON.stringify({ claims })
     } else if (e.system.includes('about to press')) {
       text = JSON.stringify({ notes })
-    } else if (e.system.includes('You check the end of')) {
+    } else if (e.system.includes('You check the final message an AI coding agent sends')) {
       text = JSON.stringify(ending || { kind: 'merge or test', verdict: 'ok', missing: '' })
     } else {
       text = JSON.stringify({
@@ -1087,7 +1087,7 @@ function stubChecks(on, { claims = [] as any[], notes = [] as any[], ending = nu
 
 const UNSHOWN = [{ claim: 'The login crash is fixed', evidence: 'none', status: 'unshown' }]
 const isProof = (e) => e.system.includes('about to press')
-const isEnding = (e) => e.system.includes('You check the end of')
+const isEnding = (e) => e.system.includes('You check the final message an AI coding agent sends')
 const checksSent = (sent: string[]) => sent.filter((t) => t.includes('NOT from the user'))
 // The checks take a few steps after the buttons are drawn: the proof call, its log line, the send.
 async function settle(clock) {
