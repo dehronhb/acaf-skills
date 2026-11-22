@@ -50,7 +50,10 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
    whole board.
 2. **A table of contents, top left.** A small panel in the top left corner lists every section by number and name
    ("1. Your projects", "2. While Claude works"). Clicking an entry glides the view to that section. It is open when
-   the board loads, a "Sections" button hides and shows it, and Fit keeps sections from sitting under it. On a
+   the board loads, and only its own hide and show button changes that: clicking an entry, making a choice,
+   zooming, Fit or a reset never hides it. When it is open, a jump and Fit frame the board in the space beside it,
+   so no section sits under it. The user (2026-11-22): "I like it to be collapsible, but I will choose when it
+   collapses. It shouldn't automatically collapse just because I make a choice." On a
    narrow window (under about 1500 px) it may start hidden, with the button in view. Why: the user (2026-11-22)
    liked "a cool little index or table of contents like in the top left corner" on the first board, as "a good way
    to shortcut to different sections of the board".
@@ -96,7 +99,8 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
 
 1. **Use it the way the user will.** Open it in the built-in browser and use real input: Ctrl+wheel over a card,
    drag the background, click each table-of-contents entry, every switch and every control inside the prototypes. Then
-   press each section's reset and check it looks exactly as it did on first load. If a gesture the reference app
+   press each section's reset and check it looks exactly as it did on first load. With the table of contents open,
+   click several of its entries and make choices, and check it is still open. If a gesture the reference app
    has does nothing, the board is not ready.
 2. **A fresh look.** Freeze screenshots of each section at the zoom its jump lands on, plus Fit, in each theme, at
    1280 and 1920 px wide, and send them to the `picky-reviewer` agent with the user's exact words. Fix what it finds
