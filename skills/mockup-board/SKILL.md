@@ -80,7 +80,14 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
    - an app with no style sheet to copy (a native desktop app, for example): match its look by hand from
      screenshots of the real app;
    - a project with no app yet: design the look from the bar and reference the user gave when asked first.
-   Content is real-looking: the project's test data when it has some, otherwise content written to fit what the
+
+   **A screen that already exists looks like the real screen.** Before building its section, take screenshots of
+   that screen in the app as it runs today (the build the user opens, on the device it's for: a phone screen at
+   phone size) and copy its layout, words, colours, fonts, icons, spacing and the parts around it (top bar, tabs,
+   buttons). Change only what the option you're asking about changes, so the user sees their own app with one thing
+   different. A **new screen** that doesn't exist yet gets your best design in the app's own look, next to the real
+   screens it opens from. Why: the user (2026-11-22) found mockups of existing phone screens that didn't look like
+   the real ones, which "makes it really hard to understand what's going on". Content is real-looking: the project's test data when it has some, otherwise content written to fit what the
    project is for. Never placeholder text ("lorem ipsum", "Item 1"). Mark anything written only for the mockup as
    sample text.
 5. **Every choice you ask about can be tried on the board.** Label options with letters (A, B, C) so the user can
@@ -117,8 +124,10 @@ One HTML page, published as a private artifact (the claude-artifacts tools), tha
    click several of its entries and make choices, and check it is still open. If a gesture the reference app
    has does nothing, the board is not ready.
 2. **A fresh look.** Freeze screenshots of each section at the zoom its jump lands on, plus Fit, in each theme, at
-   1280 and 1920 px wide, and send them to the `picky-reviewer` agent with the user's exact words. Fix what it finds
-   at normal size and repeat until a round finds nothing at normal size. Then look at it yourself.
+   1280 and 1920 px wide, and send them to the `picky-reviewer` agent with the user's exact words. For each section
+   of a screen that already exists, also send the real screen's screenshot, and ask what differs other than the
+   option being asked about. Fix what it finds at normal size and repeat until a round finds nothing at normal size.
+   Then look at it yourself.
 
 ## Hand it over
 
